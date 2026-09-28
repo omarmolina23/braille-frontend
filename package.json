@@ -1,0 +1,30 @@
+{
+  "name": "braille-app",
+  "private": true,
+  "type": "module",
+  "description": "Solución basada en tecnología para promover la lectoescritura del sistema Braille (UFPS)",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "turbo run dev --filter=@braille/web",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.11.0",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.12.0",
+    "prettier": "3.9.9",
+    "turbo": "2.11.5",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.1"
+  }
+}

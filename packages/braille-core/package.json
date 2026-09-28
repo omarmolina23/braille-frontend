@@ -1,0 +1,19 @@
+{
+  "name": "@braille/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Conocimiento Braille del proyecto: celda, tabla de signos, traducción y evaluación de errores",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --coverage",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "5.0.2",
+    "vitest": "5.0.2"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@braille/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Contrato de comunicación app ↔ ESP32: esquemas, codificación NDJSON y constantes de tiempo",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "vitest": "5.0.2"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@braille/device",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Puerto DispositivoBraille y sus adaptadores: simulador y Web Serial",
+  "exports": {
+    ".": "./src/index.ts",
+    "./pruebas": "./src/pruebas/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@braille/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "vitest": "5.0.2"
+  }
+}
