@@ -1,9 +1,12 @@
-# braille-app
+# braille-frontend
 
 Software de la **Solución basada en tecnología para promover la lectoescritura del sistema Braille en
 estudiantes con discapacidad visual de Norte de Santander** (proyecto de grado, Ingeniería de
 Sistemas, UFPS). Las decisiones de arquitectura están justificadas en el _Informe de selección
 justificada de la solución basada en tecnología_.
+
+Este repositorio contiene el **frontend** (aplicativo web) y el **firmware** del dispositivo. El
+backend vive en su propio repositorio, `braille-backend`.
 
 Un aplicativo web (PWA) controla por USB un dispositivo Braille basado en ESP32 mediante la Web
 Serial API. El dispositivo solo mueve puntos y reporta pulsaciones; toda la lógica Braille vive en
@@ -12,10 +15,9 @@ el software.
 ## Estructura
 
 ```text
-braille-app/
+braille-frontend/
 ├─ apps/
-│  ├─ web/                  PWA (Vite + React). Hoy: demo de integración de la serie a–j
-│  └─ api/                  Backend NestJS (se crea al final del MVP; ver su README)
+│  └─ web/                  PWA (Vite + React). Hoy: demo de integración de la serie a–j
 ├─ packages/
 │  ├─ braille-core/         Celda, tabla de signos, traducción y evaluación de errores
 │  ├─ protocol/             Contrato app ↔ ESP32: esquemas Zod, NDJSON y tiempos
@@ -40,7 +42,7 @@ Dependencias entre paquetes: `web → device → protocol` y `web → braille-co
 
 1. Instalar Node.js 22 LTS desde nodejs.org.
 2. En PowerShell como administrador: `corepack enable` (activa pnpm). Comprobar con `pnpm -v`.
-3. Descomprimir el repositorio en una ruta corta, por ejemplo `C:\dev\braille-app`.
+3. Descomprimir el repositorio en una ruta corta, por ejemplo `C:\dev\braille-frontend`.
 4. En esa carpeta: `pnpm install`, luego `pnpm test` (todo debe pasar) y `pnpm dev`.
 
 ## Comandos
@@ -83,6 +85,16 @@ Para validar un signo:
 2. Validarlo con los tiflólogos en sesión táctil (en la celda física o en macrotipo).
 3. Si la prueba falla, se corrige la tabla o la referencia, según cuál tenga el error.
 
+## Relación con el backend
+
+- El frontend funciona sin el backend: el ciclo de práctica (acorde → evaluación → retroalimentación)
+  ocurre en el navegador. El backend guarda usuarios, contenidos y progreso.
+- El contrato entre ambos es el **OpenAPI** que publica `braille-backend` (`openapi.json`). Cuando
+  se construya el cliente, sus tipos se generarán desde ese archivo con `openapi-typescript`, de modo
+  que un cambio en la API que rompa el frontend se detecte al compilar.
+- `braille-core` vive aquí. Si el backend llega a necesitarlo (por ejemplo, para validar contenidos),
+  se publicará como paquete privado en GitHub Packages en vez de copiarlo.
+
 ## Cómo trabajamos
 
 - Ramas cortas desde `main`, mensajes con _Conventional Commits_ (`feat:`, `fix:`, `test:`…).
@@ -100,4 +112,4 @@ Para validar un signo:
 - [ ] Completar y validar la tabla de signos con los tiflólogos.
 - [ ] Pruebas de interfaz con Testing Library y Playwright + axe en CI.
 - [ ] Interfaz final con React Aria y la identidad visual definida en la ideación.
-- [ ] Backend NestJS (identidad, contenidos, progreso) y sincronización sin conexión.
+- [ ] Cliente del backend generado desde su contrato OpenAPI y sincronización sin conexión.

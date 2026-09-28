@@ -1,5 +1,5 @@
 {
-  "name": "braille-app",
+  "name": "braille-frontend",
   "private": true,
   "type": "module",
   "description": "Solución basada en tecnología para promover la lectoescritura del sistema Braille (UFPS)",
