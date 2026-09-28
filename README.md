@@ -22,7 +22,7 @@ braille-app/
 │  └─ device/               Puerto DispositivoBraille + adaptadores (simulador, Web Serial)
 ├─ firmware/                Firmware PlatformIO del ESP32: cableado y pruebas en su README
 ├─ docs/PROTOCOLO.md        Contrato de comunicación: la fuente de verdad
-├─ docs/PRUEBAS-JAWS.md     Protocolo de pruebas manuales con JAWS y su registro
+├─ docs/PRUEBAS-NVDA.md     Protocolo de pruebas manuales con NVDA y su registro
 └─ .github/workflows/ci.yml Lint, tipos, pruebas y build en cada PR
 ```
 
@@ -65,7 +65,7 @@ Para un solo paquete: `pnpm --filter @braille/core test`.
    celda virtual.
 3. **Con dispositivo:** cargar el firmware (`firmware/README.md`), **cerrar el monitor serie** de
    PlatformIO y usar "Conectar dispositivo por USB".
-4. **Con lector de pantalla:** seguir `docs/PRUEBAS-JAWS.md`.
+4. **Con lector de pantalla:** seguir `docs/PRUEBAS-NVDA.md`.
 
 La región de anuncios es ARIA _live_: con NVDA o JAWS activos, los mensajes se leen con la voz del
 lector de pantalla.
@@ -95,7 +95,8 @@ Para validar un signo:
 
 - [x] Firmware PlatformIO que cumple la lista de verificación de `docs/PROTOCOLO.md`.
 - [ ] Primera carga del firmware en la placa y calibración de los servos.
-- [ ] Ejecutar `docs/PRUEBAS-JAWS.md` con JAWS y NVDA, y registrar los resultados.
+- [ ] Ejecutar `docs/PRUEBAS-NVDA.md` con NVDA y registrar los resultados.
+- [ ] Antes de las pruebas con usuarios, repetir los casos clave con JAWS (sección 5 de la guía).
 - [ ] Completar y validar la tabla de signos con los tiflólogos.
 - [ ] Pruebas de interfaz con Testing Library y Playwright + axe en CI.
 - [ ] Interfaz final con React Aria y la identidad visual definida en la ideación.
