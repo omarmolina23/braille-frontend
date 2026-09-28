@@ -20,8 +20,9 @@ braille-app/
 │  ├─ braille-core/         Celda, tabla de signos, traducción y evaluación de errores
 │  ├─ protocol/             Contrato app ↔ ESP32: esquemas Zod, NDJSON y tiempos
 │  └─ device/               Puerto DispositivoBraille + adaptadores (simulador, Web Serial)
-├─ firmware/                Proyecto PlatformIO del ESP32 (ver su README)
+├─ firmware/                Firmware PlatformIO del ESP32: cableado y pruebas en su README
 ├─ docs/PROTOCOLO.md        Contrato de comunicación: la fuente de verdad
+├─ docs/PRUEBAS-JAWS.md     Protocolo de pruebas manuales con JAWS y su registro
 └─ .github/workflows/ci.yml Lint, tipos, pruebas y build en cada PR
 ```
 
@@ -30,9 +31,17 @@ Dependencias entre paquetes: `web → device → protocol` y `web → braille-co
 
 ## Requisitos
 
-- Node.js 22.13 o superior y pnpm 10 (`corepack enable` lo activa).
+- Node.js 22 LTS (22.13 o superior) y pnpm 10.
 - Para el dispositivo real: Chrome o Edge de escritorio (Firefox 151+ también soporta Web Serial).
+- Para el firmware: VS Code con PlatformIO.
 - Para accesibilidad: NVDA (gratuito) y, si es posible, JAWS.
+
+## Primera vez en Windows
+
+1. Instalar Node.js 22 LTS desde nodejs.org.
+2. En PowerShell como administrador: `corepack enable` (activa pnpm). Comprobar con `pnpm -v`.
+3. Descomprimir el repositorio en una ruta corta, por ejemplo `C:\dev\braille-app`.
+4. En esa carpeta: `pnpm install`, luego `pnpm test` (todo debe pasar) y `pnpm dev`.
 
 ## Comandos
 
@@ -54,8 +63,9 @@ Para un solo paquete: `pnpm --filter @braille/core test`.
 2. **Sin dispositivo:** enfocar el área de escritura y escribir con F, D, S (puntos 1, 2, 3) y
    J, K, L (puntos 4, 5, 6); el acorde se confirma al soltar todas las teclas. También sirve la
    celda virtual.
-3. **Con dispositivo:** "Conectar dispositivo por USB". Funciona cuando el firmware cumpla
-   `docs/PROTOCOLO.md`.
+3. **Con dispositivo:** cargar el firmware (`firmware/README.md`), **cerrar el monitor serie** de
+   PlatformIO y usar "Conectar dispositivo por USB".
+4. **Con lector de pantalla:** seguir `docs/PRUEBAS-JAWS.md`.
 
 La región de anuncios es ARIA _live_: con NVDA o JAWS activos, los mensajes se leen con la voz del
 lector de pantalla.
@@ -83,7 +93,9 @@ Para validar un signo:
 
 ## Próximos pasos
 
-- [ ] Firmware PlatformIO que cumpla la lista de verificación de `docs/PROTOCOLO.md`.
+- [x] Firmware PlatformIO que cumple la lista de verificación de `docs/PROTOCOLO.md`.
+- [ ] Primera carga del firmware en la placa y calibración de los servos.
+- [ ] Ejecutar `docs/PRUEBAS-JAWS.md` con JAWS y NVDA, y registrar los resultados.
 - [ ] Completar y validar la tabla de signos con los tiflólogos.
 - [ ] Pruebas de interfaz con Testing Library y Playwright + axe en CI.
 - [ ] Interfaz final con React Aria y la identidad visual definida en la ideación.
