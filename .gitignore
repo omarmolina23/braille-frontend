@@ -11,3 +11,6 @@ coverage/
 # PlatformIO
 firmware/.pio/
 firmware/.vscode/
+
+# Instrucciones personales para Claude Code (no se comparten)
+CLAUDE.local.md
