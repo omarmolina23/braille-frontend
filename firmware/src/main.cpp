@@ -134,13 +134,17 @@ static bool actualizar(Pulsador &b) {
 }
 
 static void leerPulsadores() {
-    bool algunoPresionado = false;
+    uint8_t presionados = 0;
+    bool nuevaPulsacion = false;
     for (int p = 0; p < 6; p++) {
-        if (actualizar(puntos[p]) && puntos[p].estable) acorde |= (1 << p);
-        algunoPresionado |= puntos[p].estable;
+        if (actualizar(puntos[p]) && puntos[p].estable) nuevaPulsacion = true;
+        if (puntos[p].estable) presionados |= (1 << p);
     }
+    // El acorde son las teclas presionadas a la vez tras la última pulsación: soltarlas una por
+    // una no las quita, pero una tecla soltada antes de presionar otra ya no cuenta.
+    if (nuevaPulsacion) acorde = presionados;
     // El acorde se cierra cuando se sueltan TODAS las teclas de puntos.
-    if (!algunoPresionado && acorde != 0) {
+    if (presionados == 0 && acorde != 0) {
         JsonDocument doc;
         doc["t"] = "chord";
         doc["m"] = acorde;

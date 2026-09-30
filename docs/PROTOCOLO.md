@@ -49,15 +49,15 @@ ejecutable de su comportamiento.
 
 ### Dispositivo → app
 
-| `t`     | Campos                      | Ejemplo                                                                            | Cuándo se envía                                                                                   |
-| ------- | --------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `boot`  | `fw`                        | `{"t":"boot","fw":"0.1.0"}`                                                        | Al terminar `setup()`, en cada arranque o reinicio                                                |
-| `info`  | `id`, `proto`, `fw`, `keys` | `{"t":"info","id":1,"proto":1,"fw":"0.1.0","keys":["space","back","repeat","ok"]}` | En respuesta a `hello`; `keys` lista las teclas de control que existen físicamente                |
-| `ack`   | `id`, `ms` (opcional)       | `{"t":"ack","id":7,"ms":420}`                                                      | Al terminar un `cell` o `clear`; `ms` = duración real de la actuación                             |
-| `chord` | `m` (1–63)                  | `{"t":"chord","m":9}`                                                              | Al soltar **todas** las teclas de puntos; `m` = unión de los puntos presionados durante el acorde |
-| `key`   | `k`                         | `{"t":"key","k":"space"}`                                                          | Al soltar una tecla de control (`space`, `back`, `repeat`, `ok`)                                  |
-| `pong`  | `id`                        | `{"t":"pong","id":9}`                                                              | En respuesta a `ping`                                                                             |
-| `err`   | `id` (opcional), `code`     | `{"t":"err","id":7,"code":"SERVO_TIMEOUT"}`                                        | Cuando un comando no se pudo cumplir                                                              |
+| `t`     | Campos                      | Ejemplo                                                                            | Cuándo se envía                                                                                                       |
+| ------- | --------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `boot`  | `fw`                        | `{"t":"boot","fw":"0.1.0"}`                                                        | Al terminar `setup()`, en cada arranque o reinicio                                                                    |
+| `info`  | `id`, `proto`, `fw`, `keys` | `{"t":"info","id":1,"proto":1,"fw":"0.1.0","keys":["space","back","repeat","ok"]}` | En respuesta a `hello`; `keys` lista las teclas de control que existen físicamente                                    |
+| `ack`   | `id`, `ms` (opcional)       | `{"t":"ack","id":7,"ms":420}`                                                      | Al terminar un `cell` o `clear`; `ms` = duración real de la actuación                                                 |
+| `chord` | `m` (1–63)                  | `{"t":"chord","m":9}`                                                              | Al soltar **todas** las teclas de puntos; `m` = puntos presionados a la vez tras la última pulsación (§ 4, Escritura) |
+| `key`   | `k`                         | `{"t":"key","k":"space"}`                                                          | Al soltar una tecla de control (`space`, `back`, `repeat`, `ok`)                                                      |
+| `pong`  | `id`                        | `{"t":"pong","id":9}`                                                              | En respuesta a `ping`                                                                                                 |
+| `err`   | `id` (opcional), `code`     | `{"t":"err","id":7,"code":"SERVO_TIMEOUT"}`                                        | Cuando un comando no se pudo cumplir                                                                                  |
 
 Códigos de error definidos: `SERVO_TIMEOUT`, `BUSY` (llegó un `cell`/`clear` mientras otro estaba en
 curso), `BAD_MESSAGE` (JSON inválido o campos faltantes), `UNKNOWN_TYPE`.
@@ -84,8 +84,10 @@ curso), `BAD_MESSAGE` (JSON inválido o campos faltantes), `UNKNOWN_TYPE`.
 ### Escritura (responder un ejercicio)
 
 1. La persona presiona una o varias teclas de puntos.
-2. El firmware acumula los puntos presionados (con antirrebote de ~25 ms por tecla).
-3. Cuando **todas** las teclas de puntos están sueltas, firmware → `chord` con la unión.
+2. Cada vez que se presiona una tecla (con antirrebote de ~25 ms por tecla), el firmware toma como
+   acorde las teclas que están presionadas en ese momento. Soltarlas una por una no las quita del
+   acorde; una tecla que se soltó antes de presionar otra ya no cuenta (así se corrige un error).
+3. Cuando **todas** las teclas de puntos están sueltas, firmware → `chord` con ese acorde.
 4. La app evalúa con `braille-core` y da la retroalimentación.
 
 ### Latido
@@ -124,6 +126,7 @@ desconectado y lo anuncia. El navegador también emite el evento `disconnect` si
 
 ## Historial
 
-| Fecha      | Versión      | Cambio            |
-| ---------- | ------------ | ----------------- |
-| 2026-09-27 | 1 (borrador) | Primera propuesta |
+| Fecha      | Versión      | Cambio                                                          |
+| ---------- | ------------ | --------------------------------------------------------------- |
+| 2026-09-27 | 1 (borrador) | Primera propuesta                                               |
+| 2026-09-30 | 1 (borrador) | `chord`: una tecla soltada antes de presionar otra ya no cuenta |
