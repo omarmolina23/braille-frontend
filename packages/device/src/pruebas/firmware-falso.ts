@@ -58,6 +58,8 @@ export class FirmwareFalso {
   private escribible: WritableStream<Uint8Array> | null = null;
   private ocupado = false;
   private arrancando = false;
+  private presionados = 0;
+  private acorde = 0;
   private readonly separador = new SeparadorLineas();
   private readonly decodificador = new TextDecoder();
   private readonly codificador = new TextEncoder();
@@ -122,6 +124,31 @@ export class FirmwareFalso {
     this.emitirTexto(codificar(mensaje));
   }
 
+  /**
+   * Presiona el pulsador de un punto (1 a 6). Regla del acorde (PROTOCOLO § 4, Escritura): cada
+   * pulsación nueva toma como acorde las teclas presionadas en ese momento.
+   */
+  presionarPunto(punto: number): void {
+    const bit = 1 << (punto - 1);
+    if (this.presionados & bit) return;
+    this.presionados |= bit;
+    this.acorde = this.presionados;
+    this.emitir({ t: 'press', p: this.presionados, m: this.acorde });
+  }
+
+  /** Suelta el pulsador de un punto: `press` si quedan otros presionados, `chord` si no. */
+  soltarPunto(punto: number): void {
+    const bit = 1 << (punto - 1);
+    if (!(this.presionados & bit)) return;
+    this.presionados &= ~bit;
+    if (this.presionados !== 0) {
+      this.emitir({ t: 'press', p: this.presionados, m: this.acorde });
+      return;
+    }
+    this.emitir({ t: 'chord', m: this.acorde });
+    this.acorde = 0;
+  }
+
   /** Envía texto crudo (ruido, líneas inválidas). */
   emitirTexto(texto: string): void {
     if (!this.controlador) return;
@@ -135,6 +162,8 @@ export class FirmwareFalso {
   reiniciar(): void {
     this.ocupado = false;
     this.arrancando = false;
+    this.presionados = 0;
+    this.acorde = 0;
     this.emitirTexto(`${REGISTRO_ROM.join('\r\n')}\r\n`);
     this.emitir({ t: 'boot', fw: this.o.version });
   }

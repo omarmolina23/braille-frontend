@@ -34,6 +34,7 @@ describe('líneas inválidas', () => {
   it.each([
     ['máscara fuera de rango', '{"t":"chord","m":64}'],
     ['acorde vacío', '{"t":"chord","m":0}'],
+    ['acorde en curso sin teclas presionadas', '{"t":"press","p":0,"m":9}'],
     ['tipo desconocido', '{"t":"servo","id":1}'],
     ['falta el id del ack', '{"t":"ack"}'],
     ['tecla desconocida', '{"t":"key","k":"enter"}'],

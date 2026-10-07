@@ -4,6 +4,8 @@ import {
   DispositivoWebSerial,
   ErrorIncompatible,
   ErrorProtocolo,
+  SIN_ACORDE,
+  type AcordeEnCurso,
   type EstadoConexion,
   type OpcionesWebSerial,
 } from '../src';
@@ -114,6 +116,46 @@ describe('escritura y teclas', () => {
       expect(acordes).toEqual([9]);
       expect(teclas).toEqual(['ok']);
     });
+  });
+
+  it('informa los pulsadores mientras se escribe y cierra con el acorde', async () => {
+    const { falso, dispositivo } = montar();
+    await dispositivo.conectar();
+    const enCurso: AcordeEnCurso[] = [];
+    const acordes: number[] = [];
+    dispositivo.onAcordeEnCurso((e) => enCurso.push(e));
+    dispositivo.onAcorde((m) => acordes.push(m));
+
+    // Mantiene el 1, presiona y suelta el 2 (error), presiona el 5 y suelta todo: sale la e.
+    falso.presionarPunto(1);
+    falso.presionarPunto(2);
+    falso.soltarPunto(2);
+    falso.presionarPunto(5);
+    falso.soltarPunto(1);
+    falso.soltarPunto(5);
+
+    await vi.waitFor(() => expect(acordes).toEqual([17]));
+    expect(enCurso).toEqual([
+      { presionados: 1, acorde: 1 },
+      { presionados: 3, acorde: 3 },
+      { presionados: 1, acorde: 3 },
+      { presionados: 17, acorde: 17 },
+      { presionados: 16, acorde: 17 },
+      SIN_ACORDE,
+    ]);
+  });
+
+  it('no deja un acorde a medias si se pierde la conexión', async () => {
+    const { falso, dispositivo } = montar();
+    await dispositivo.conectar();
+    const enCurso: AcordeEnCurso[] = [];
+    dispositivo.onAcordeEnCurso((e) => enCurso.push(e));
+
+    falso.presionarPunto(4);
+    await vi.waitFor(() => expect(enCurso).toEqual([{ presionados: 8, acorde: 8 }]));
+    falso.desconectarCable();
+
+    await vi.waitFor(() => expect(enCurso.at(-1)).toEqual(SIN_ACORDE));
   });
 });
 

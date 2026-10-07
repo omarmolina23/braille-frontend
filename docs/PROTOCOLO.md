@@ -55,6 +55,7 @@ ejecutable de su comportamiento.
 | `info`  | `id`, `proto`, `fw`, `keys` | `{"t":"info","id":1,"proto":1,"fw":"0.1.0","keys":["space","back","repeat","ok"]}` | En respuesta a `hello`; `keys` lista las teclas de control que existen físicamente                                    |
 | `ack`   | `id`, `ms` (opcional)       | `{"t":"ack","id":7,"ms":420}`                                                      | Al terminar un `cell` o `clear`; `ms` = duración real de la actuación                                                 |
 | `chord` | `m` (1–63)                  | `{"t":"chord","m":9}`                                                              | Al soltar **todas** las teclas de puntos; `m` = puntos presionados a la vez tras la última pulsación (§ 4, Escritura) |
+| `press` | `p` (1–63), `m` (1–63)      | `{"t":"press","p":1,"m":9}`                                                        | Al cambiar las teclas de puntos presionadas, salvo al soltar la última; `p` = presionadas, `m` = acorde en curso      |
 | `key`   | `k`                         | `{"t":"key","k":"space"}`                                                          | Al soltar una tecla de control (`space`, `back`, `repeat`, `ok`)                                                      |
 | `pong`  | `id`                        | `{"t":"pong","id":9}`                                                              | En respuesta a `ping`                                                                                                 |
 | `err`   | `id` (opcional), `code`     | `{"t":"err","id":7,"code":"SERVO_TIMEOUT"}`                                        | Cuando un comando no se pudo cumplir                                                                                  |
@@ -87,8 +88,14 @@ curso), `BAD_MESSAGE` (JSON inválido o campos faltantes), `UNKNOWN_TYPE`.
 2. Cada vez que se presiona una tecla (con antirrebote de ~25 ms por tecla), el firmware toma como
    acorde las teclas que están presionadas en ese momento. Soltarlas una por una no las quita del
    acorde; una tecla que se soltó antes de presionar otra ya no cuenta (así se corrige un error).
-3. Cuando **todas** las teclas de puntos están sueltas, firmware → `chord` con ese acorde.
-4. La app evalúa con `braille-core` y da la retroalimentación.
+3. Mientras quede alguna presionada, cada cambio (presionar o soltar una tecla) se reporta con
+   `press`: `p` son las teclas presionadas en ese momento y `m` el acorde en curso. La app lo usa
+   para dibujar el acorde mientras se escribe.
+4. Cuando **todas** las teclas de puntos están sueltas, firmware → `chord` con ese acorde (sin
+   `press` final).
+5. La app evalúa con `braille-core` y da la retroalimentación.
+6. La app envía `cell` con ese acorde para que la persona toque lo que escribió. No espera el `ack`
+   para dar la retroalimentación del paso 5.
 
 ### Latido
 
@@ -108,6 +115,8 @@ desconectado y lo anuncia. El navegador también emite el evento `disconnect` si
 ## 6. Versionado
 
 - Agregar un campo **opcional** o un código de error nuevo es compatible: no cambia `proto`.
+- Agregar un mensaje del dispositivo que la app pueda ignorar sin perder funciones también es
+  compatible: una app anterior descarta los tipos que no conoce.
 - Cambiar el significado de un campo, quitarlo o volverlo obligatorio es **incompatible**: sube `proto`
   en `packages/protocol/src/constantes.ts` y en el firmware, en el mismo PR.
 - Todo cambio se anota en el historial de abajo.
@@ -119,6 +128,7 @@ desconectado y lo anuncia. El navegador también emite el evento `disconnect` si
 - [ ] `cell` y `clear` responden `ack` solo después de que los servos se detienen.
 - [ ] Responde `err` con `BUSY` si llega un `cell`/`clear` durante otro.
 - [ ] Emite `chord` al soltar todas las teclas de puntos, nunca con `m` = 0.
+- [ ] Emite `press` en cada cambio de las teclas de puntos mientras el acorde sigue abierto.
 - [ ] Emite `key` al soltar una tecla de control.
 - [ ] Responde `ping` con `pong`.
 - [ ] Ignora líneas inválidas y responde `err` con `BAD_MESSAGE` si traen un `id` legible.
@@ -126,7 +136,8 @@ desconectado y lo anuncia. El navegador también emite el evento `disconnect` si
 
 ## Historial
 
-| Fecha      | Versión      | Cambio                                                          |
-| ---------- | ------------ | --------------------------------------------------------------- |
-| 2026-09-27 | 1 (borrador) | Primera propuesta                                               |
-| 2026-09-30 | 1 (borrador) | `chord`: una tecla soltada antes de presionar otra ya no cuenta |
+| Fecha      | Versión      | Cambio                                                                        |
+| ---------- | ------------ | ----------------------------------------------------------------------------- |
+| 2026-09-27 | 1 (borrador) | Primera propuesta                                                             |
+| 2026-09-30 | 1 (borrador) | `chord`: una tecla soltada antes de presionar otra ya no cuenta               |
+| 2026-10-07 | 1 (borrador) | Nuevo mensaje `press`: el acorde en curso, para dibujarlo mientras se escribe |
