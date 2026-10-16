@@ -9,16 +9,20 @@ sabe Braille: mueve puntos cuando la app lo pide y reporta los pulsadores.
 | `src/main.cpp`            | Protocolo, servos escalonados y pulsadores con antirrebote, todo no bloqueante               |
 | `platformio.ini`          | Placa `esp32dev`, librerías (ArduinoJson 7, ESP32Servo 3) y monitor listo para escribir JSON |
 
-## 1. Cableado sugerido (ESP32 DevKit de 30 pines)
+## 1. Cableado sugerido (ESP32 DevKit de 36 pines)
 
-| Punto | Servo (señal) | Pulsador |
-| ----- | ------------- | -------- |
-| 1     | GPIO 16       | GPIO 32  |
-| 2     | GPIO 17       | GPIO 23  |
-| 3     | GPIO 27       | GPIO 22  |
-| 4     | GPIO 26       | GPIO 21  |
-| 5     | GPIO 25       | GPIO 19  |
-| 6     | GPIO 33       | GPIO 18  |
+Los servos van en un lado de la placa de expansión (el de los GPIO 32, 33, 25, 26 y 27) y los
+pulsadores en el otro (el de los GPIO 23, 22, 21, 19, 18 y 17). La única excepción es el servo del
+punto 6.
+
+| Punto | Servo (señal)                          | Pulsador |
+| ----- | -------------------------------------- | -------- |
+| 1     | GPIO 32                                | GPIO 23  |
+| 2     | GPIO 33                                | GPIO 22  |
+| 3     | GPIO 25                                | GPIO 21  |
+| 4     | GPIO 26                                | GPIO 19  |
+| 5     | GPIO 27                                | GPIO 18  |
+| 6     | GPIO 16 (en el lado de los pulsadores) | GPIO 17  |
 
 | Tecla de control | GPIO                                |
 | ---------------- | ----------------------------------- |
@@ -34,9 +38,11 @@ sabe Braille: mueve puntos cuando la app lo pide y reporta los pulsadores.
   el regulador de su placa de expansión antes de conectar varios servos a él. El firmware ya
   escalona los movimientos 60 ms para repartir esos picos.
 - Los pines se eligieron para evitar los de arranque (0, 2, 5, 12, 15), la flash (6–11) y el puerto
-  serie (1 y 3), que usa el USB. Los servos 1 y 2 estaban en los GPIO 13 y 14, que no funcionaron
-  con el montaje; pasaron a 16 y 17, que eran de Espacio y Borrar. La app todavía no usa esas dos
-  teclas: si las necesitan, conéctenlas a los GPIO 34 y 35 con resistencia de 10 kΩ a 3,3 V.
+  serie (1 y 3), que usa el USB. En el lado de los servos solo cinco pines sirven como salida: los
+  GPIO 13 y 14 no funcionaron con el montaje, el 12 es de arranque y los 34–39 solo leen. Por eso el
+  servo del punto 6 va en el GPIO 16; la serie a–j no usa ese punto.
+- **Espacio y Borrar** siguen sin asignar: la app todavía no las usa. Si las necesitan, conéctenlas a
+  los GPIO 34 y 35 con resistencia de 10 kΩ a 3,3 V (nunca a 5 V).
 - **Rotación:** "abajo" es 0° y "arriba" es 180°. Cada movimiento espera 450 ms a que el servo
   llegue antes de responder `ack`.
 
@@ -58,7 +64,7 @@ con Enter). Al abrirlo, la placa se reinicia: primero aparece el registro del RO
 
 | Escriben                        | Deben ver                                                      |
 | ------------------------------- | -------------------------------------------------------------- |
-| `{"t":"hello","id":1}`          | `{"t":"info","id":1,"proto":1,"fw":"0.2.0","keys":["repeat"]}` |
+| `{"t":"hello","id":1}`          | `{"t":"info","id":1,"proto":1,"fw":"0.2.1","keys":["repeat"]}` |
 | `{"t":"cell","id":2,"m":9}`     | Suben los puntos 1 y 4 y luego `{"t":"ack","id":2,"ms":…}`     |
 | `{"t":"clear","id":3}`          | Bajan todos los puntos y luego `ack`                           |
 | `{"t":"ping","id":4}`           | `{"t":"pong","id":4}`                                          |
