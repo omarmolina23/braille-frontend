@@ -5,7 +5,7 @@
 // pocos servos y pulsadores.
 // ─────────────────────────────────────────────────────────────────────────────
 
-#define VERSION_FIRMWARE "0.2.1"
+#define VERSION_FIRMWARE "0.2.2"
 #define VERSION_PROTOCOLO 1
 #define BAUDIOS 115200
 
@@ -14,16 +14,16 @@
 // 15), la flash (6–11) y el puerto serie (1 y 3), que usa el USB.
 
 // Servos de la celda de lectura, en orden de punto 1 a 6.
-// En el lado de los servos solo cinco pines sirven como salida (13 y 14 no funcionaron con el
-// montaje, 12 es de arranque y 34–39 solo leen), así que el punto 6 va en el GPIO 16, del lado
-// de los pulsadores. La serie a–j no usa el punto 6.
+// El punto 6 va en el GPIO 13 y no en el 14 (que está antes en la fila): el 14 emite pulsos
+// al arrancar y movería ese servo cada vez que se reinicia la placa, por ejemplo al conectar la
+// app. El 12 tampoco sirve: es de arranque.
 static const int PIN_SERVO[6] = {
     32, // punto 1
     33, // punto 2
     25, // punto 3
     26, // punto 4
     27, // punto 5
-    16, // punto 6 (lado de los pulsadores)
+    13, // punto 6
 };
 
 // Ángulos de cada servo: con la leva, "abajo" deja el pin hundido y "arriba" lo levanta.
@@ -54,8 +54,8 @@ static const int PIN_PULSADOR_PUNTO[6] = {
 
 // Teclas de control. GPIO 34–39 solo sirven como entrada y NO tienen pull-up interno:
 // si se usan, necesitan una resistencia de 10 kΩ a 3,3 V (nunca a 5 V).
-// Espacio y Borrar siguen sin asignar porque no quedan pines libres con pull-up interno; la app
-// todavía no las usa. Para conectarlas: GPIO 34 y 35, cada uno con su resistencia.
+// Espacio y Borrar siguen sin asignar: la app todavía no las usa. Para conectarlas, el GPIO 16
+// (lado de los pulsadores) tiene pull-up interno y no necesita resistencia; los GPIO 34 y 35 sí.
 // Sin esa resistencia, un pin de 34–39 queda al aire y genera pulsaciones falsas.
 #define PIN_TECLA_ESPACIO -1
 #define PIN_TECLA_BORRAR -1
