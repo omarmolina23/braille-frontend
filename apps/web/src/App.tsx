@@ -12,6 +12,7 @@ import {
   evaluar,
   mascaraAPuntos,
   nombreConArticulo,
+  signoPorMascara,
   signosDeSerie,
   type Mascara,
   type Signo,
@@ -24,6 +25,7 @@ import {
   webSerialDisponible,
   type DispositivoBraille,
   type EstadoConexion,
+  type EstadoLector,
   type LectorSeisTeclas,
 } from '@braille/device';
 
@@ -37,12 +39,85 @@ const TEXTO_ESTADO: Record<EstadoConexion, string> = {
   error: 'error de conexión',
 };
 
+type OrigenAcorde = 'teclado' | 'celda virtual' | 'dispositivo';
+
+interface AcordeEscrito {
+  mascara: Mascara;
+  origen: OrigenAcorde;
+}
+
+const TEXTO_ORIGEN: Record<OrigenAcorde, string> = {
+  teclado: 'con el teclado',
+  'celda virtual': 'con la celda virtual',
+  dispositivo: 'con el dispositivo',
+};
+
+const SIN_TECLAS: EstadoLector = { presionados: 0, acorde: 0 };
+
 const mayuscula = (texto: string) => texto.charAt(0).toLocaleUpperCase('es') + texto.slice(1);
 const bit = (punto: number) => 1 << (punto - 1);
 
 function describirSigno(signo: Signo): string {
   const figura = signo.figura ? ` Figura: ${signo.figura}.` : '';
   return `${mayuscula(nombreConArticulo(signo))}: ${describirPuntos(signo.mascara)}.${figura}`;
+}
+
+type EstadoPunto = 'presionado' | 'soltado' | 'escrito' | 'vacio';
+
+interface PropsVisor {
+  teclado: EstadoLector;
+  celdaVirtual: Mascara;
+  ultimo: AcordeEscrito | null;
+}
+
+/**
+ * Visor de la celda: muestra los puntos del acorde que se está escribiendo (teclado de seis teclas
+ * o celda virtual) y, cuando no hay ninguno en curso, el último acorde escrito desde cualquier
+ * entrada. El texto no es región live: los anuncios siguen saliendo por una sola voz.
+ */
+function VisorCelda({ teclado, celdaVirtual, ultimo }: PropsVisor) {
+  const enTeclado = teclado.acorde !== 0;
+  const enCurso = enTeclado ? teclado.acorde : celdaVirtual;
+
+  function estadoDe(p: number): EstadoPunto {
+    if (enTeclado) {
+      if (teclado.presionados & bit(p)) return 'presionado';
+      return teclado.acorde & bit(p) ? 'soltado' : 'vacio';
+    }
+    if (enCurso !== 0) return enCurso & bit(p) ? 'presionado' : 'vacio';
+    return ultimo && ultimo.mascara & bit(p) ? 'escrito' : 'vacio';
+  }
+
+  let texto: string;
+  if (enTeclado) {
+    const sueltos = teclado.acorde & ~teclado.presionados;
+    texto =
+      `Escribiendo con el teclado: ${describirPuntos(teclado.acorde)}.` +
+      (sueltos ? ` Ya soltaste ${describirPuntos(sueltos)}, pero sigue en el acorde.` : '');
+  } else if (enCurso !== 0) {
+    texto = `Marcando en la celda virtual: ${describirPuntos(enCurso)}.`;
+  } else if (ultimo) {
+    const signo = signoPorMascara(ultimo.mascara);
+    texto =
+      `Último acorde ${TEXTO_ORIGEN[ultimo.origen]}: ${describirPuntos(ultimo.mascara)}` +
+      (signo ? `, ${nombreConArticulo(signo)}.` : ', que no corresponde a ningún signo.');
+  } else {
+    texto = 'Todavía no has presionado ningún punto.';
+  }
+
+  return (
+    <section aria-labelledby="t-visor" className="visor">
+      <h2 id="t-visor">Visor de la celda</h2>
+      <div className="celda celda-visor" aria-hidden="true">
+        {PUNTOS.map((p) => (
+          <span key={p} className="punto" data-estado={estadoDe(p)}>
+            <span className="numero">{p}</span>
+          </span>
+        ))}
+      </div>
+      <p>{texto}</p>
+    </section>
+  );
 }
 
 export function App() {
@@ -53,6 +128,10 @@ export function App() {
   const [anuncio, setAnuncio] = useState('');
   const [celdaVirtual, setCeldaVirtual] = useState<Mascara>(0);
   const [celdaMostrada, setCeldaMostrada] = useState<Mascara | null>(null);
+  const [teclado, setTeclado] = useState<EstadoLector>(SIN_TECLAS);
+  const [ultimoAcorde, setUltimoAcorde] = useState<AcordeEscrito | null>(null);
+  /** Entrada de pantalla que originó el próximo acorde; si no hay, vino del dispositivo. */
+  const origenRef = useRef<OrigenAcorde | null>(null);
   const objetivo = LETRAS[indice % LETRAS.length]!;
   const esFisico = dispositivo !== simulador;
 
@@ -69,6 +148,8 @@ export function App() {
 
   const manejarAcorde = useCallback(
     (mascara: Mascara) => {
+      setUltimoAcorde({ mascara, origen: origenRef.current ?? 'dispositivo' });
+      origenRef.current = null;
       const esperado = objetivoRef.current;
       const evaluacion = evaluar(esperado.mascara, mascara);
       const mensaje = describirEvaluacion(evaluacion, esperado);
@@ -121,7 +202,8 @@ export function App() {
 
   // La escritura de pantalla pasa por el mismo camino que la del dispositivo.
   const escribir = useCallback(
-    (mascara: Mascara) => {
+    (mascara: Mascara, origen: OrigenAcorde) => {
+      origenRef.current = origen;
       if (dispositivo === simulador) simulador.pulsarAcorde(mascara);
       else manejarAcorde(mascara);
     },
@@ -134,7 +216,10 @@ export function App() {
   const lectorRef = useRef<LectorSeisTeclas | null>(null);
   /** Solo se llama desde manejadores de eventos (nunca durante el render). */
   function lector(): LectorSeisTeclas {
-    lectorRef.current ??= crearLectorSeisTeclas((m) => escribirRef.current(m));
+    lectorRef.current ??= crearLectorSeisTeclas(
+      (m) => escribirRef.current(m, 'teclado'),
+      setTeclado,
+    );
     return lectorRef.current;
   }
 
@@ -167,7 +252,7 @@ export function App() {
       anunciar('La celda está vacía: marca al menos un punto.');
       return;
     }
-    escribir(celdaVirtual);
+    escribir(celdaVirtual, 'celda virtual');
     setCeldaVirtual(0);
   }
 
@@ -255,6 +340,8 @@ export function App() {
         </div>
         {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
       </section>
+
+      <VisorCelda teclado={teclado} celdaVirtual={celdaVirtual} ultimo={ultimoAcorde} />
 
       <section aria-labelledby="t-celda">
         <h2 id="t-celda">Celda virtual</h2>

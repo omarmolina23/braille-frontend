@@ -117,3 +117,54 @@ button:disabled {
 .area-escritura:focus {
   border-style: solid;
 }
+
+/* Visor: presionado = relleno con anillo; soltado pero todavía en el acorde = rayado;
+   escrito = relleno.
+   El número dentro de cada punto y el texto de abajo evitan depender solo del color. */
+.celda-visor .punto {
+  font-weight: 700;
+}
+
+.celda-visor .punto[data-estado='presionado'] {
+  background: var(--texto);
+  color: var(--fondo);
+  box-shadow: 0 0 0 4px var(--acento);
+}
+
+.celda-visor .punto[data-estado='soltado'] {
+  background: repeating-linear-gradient(45deg, var(--texto) 0 4px, var(--fondo) 4px 8px);
+}
+
+/* Disco liso detrás del número para que se lea sobre el rayado. */
+.celda-visor .punto[data-estado='soltado'] .numero {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: var(--fondo);
+  color: var(--texto);
+}
+
+.celda-visor .punto[data-estado='escrito'] {
+  background: var(--texto);
+  color: var(--fondo);
+}
+
+@media (forced-colors: active) {
+  .celda-visor .punto[data-estado='presionado'],
+  .celda-visor .punto[data-estado='escrito'] {
+    background: CanvasText;
+    color: Canvas;
+    forced-color-adjust: none;
+  }
+
+  .celda-visor .punto[data-estado='presionado'] {
+    box-shadow: 0 0 0 4px Highlight;
+  }
+
+  /* El modo de alto contraste quita los degradados: el rayado se reemplaza por borde punteado. */
+  .celda-visor .punto[data-estado='soltado'] {
+    border-style: dashed;
+  }
+}
