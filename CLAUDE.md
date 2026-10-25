@@ -22,6 +22,16 @@ archivo en el mismo PR. Lo personal va en CLAUDE.local.md (no versionado). -->
   el acorde (RNF-02), celda posicionada ≤ 1 s (RNF-03), desconexión detectada ≤ 2 s (RNF-04),
   cobertura ≥ 80 % en `braille-core` (RNF-10).
 
+## Etapa actual: versión de prueba
+
+- Lo que hay hoy (la web de `apps/web`, el firmware y los paquetes) es una **versión de prueba**:
+  faltan las entidades de la base de datos, el funcionamiento del backend y el diseño final del
+  frontend. No se presenta como versión final.
+- Los PR de esta etapa llevan la etiqueta **`prototipo`** en GitHub (también en `braille-backend`) y
+  sus ramas empiezan por `prototipo/`. Los de la versión final no la llevan.
+- La interfaz muestra la etiqueta "Versión de prueba" junto al título; se quita al pasar a la
+  versión final.
+
 ## Arquitectura (no romper)
 
 - **El dispositivo es un periférico sin lógica de dominio:** mueve puntos y reporta acordes. Toda

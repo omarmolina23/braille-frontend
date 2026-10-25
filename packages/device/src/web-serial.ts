@@ -14,6 +14,8 @@ import {
 } from '@braille/protocol';
 import {
   Emisor,
+  SIN_ACORDE,
+  type AcordeEnCurso,
   type Cancelar,
   type DispositivoBraille,
   type EstadoConexion,
@@ -82,6 +84,8 @@ export class DispositivoWebSerial implements DispositivoBraille {
   private cerrando = false;
   private readonly codificador = new TextEncoder();
   private readonly acordes = new Emisor<Mascara>();
+  private enCurso: AcordeEnCurso = SIN_ACORDE;
+  private readonly acordesEnCurso = new Emisor<AcordeEnCurso>();
   private readonly teclas = new Emisor<TeclaControl>();
   private readonly estados = new Emisor<EstadoConexion>();
   private readonly o: Required<Omit<OpcionesWebSerial, 'onLineaIgnorada'>> &
@@ -152,6 +156,10 @@ export class DispositivoWebSerial implements DispositivoBraille {
 
   onAcorde(cb: (mascara: Mascara) => void): Cancelar {
     return this.acordes.suscribir(cb);
+  }
+
+  onAcordeEnCurso(cb: (estado: AcordeEnCurso) => void): Cancelar {
+    return this.acordesEnCurso.suscribir(cb);
   }
 
   onTecla(cb: (tecla: TeclaControl) => void): Cancelar {
@@ -291,7 +299,11 @@ export class DispositivoWebSerial implements DispositivoBraille {
         pendiente.rechazar(new ErrorProtocolo(`El dispositivo respondió ${mensaje.code}.`));
         return;
       }
+      case 'press':
+        this.cambiarAcordeEnCurso({ presionados: mensaje.p, acorde: mensaje.m });
+        return;
       case 'chord':
+        this.cambiarAcordeEnCurso(SIN_ACORDE);
         this.acordes.emitir(mensaje.m);
         return;
       case 'key':
@@ -302,6 +314,7 @@ export class DispositivoWebSerial implements DispositivoBraille {
 
   /** `boot` inesperado: el ESP32 se reinició. Durante el saludo, se reenvía `hello` de inmediato. */
   private alReiniciarse(): void {
+    this.cambiarAcordeEnCurso(SIN_ACORDE);
     for (const [id, p] of this.pendientes) {
       clearTimeout(p.temporizador);
       this.pendientes.delete(id);
@@ -349,6 +362,7 @@ export class DispositivoWebSerial implements DispositivoBraille {
     if (this.latido) clearInterval(this.latido);
     this.latido = null;
     this.pongsPerdidos = 0;
+    this.cambiarAcordeEnCurso(SIN_ACORDE);
     this.rechazarPendientes('Conexión cerrada.');
     await this.lector?.cancel().catch(() => undefined);
     await this.bucle;
@@ -363,6 +377,13 @@ export class DispositivoWebSerial implements DispositivoBraille {
     }
     await this.puerto.close().catch(() => undefined);
     this.cerrando = false;
+  }
+
+  private cambiarAcordeEnCurso(estado: AcordeEnCurso): void {
+    if (estado.presionados === this.enCurso.presionados && estado.acorde === this.enCurso.acorde)
+      return;
+    this.enCurso = estado;
+    this.acordesEnCurso.emitir(estado);
   }
 
   private cambiarEstado(estado: EstadoConexion): void {

@@ -1,35 +1,45 @@
 /**
- * DEMO DE INTEGRACIÓN (no es la interfaz final).
- * Comprueba que braille-core, el simulador y el adaptador Web Serial encajan en una lección
- * mínima de la serie a–j. El diseño visual llega después de la sesión de ideación; aquí solo
+ * VERSIÓN DE PRUEBA (no es la interfaz final).
+ * Comprueba que braille-core, el simulador y el adaptador Web Serial encajan en lecciones de las
+ * series a–j, k–t y u–z. El diseño visual llega después de la sesión de ideación; aquí solo
  * importan la semántica y la accesibilidad.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   PUNTOS,
+  TABLA,
   describirEvaluacion,
   describirPuntos,
+  esLetra,
   evaluar,
   mascaraAPuntos,
   nombreConArticulo,
+  signoPorId,
   signoPorMascara,
   signosDeSerie,
   type Mascara,
+  type Serie,
   type Signo,
 } from '@braille/core';
 import {
   DispositivoWebSerial,
+  SIN_ACORDE,
   SimuladorDispositivo,
   crearLectorSeisTeclas,
   solicitarPuertoSerie,
   webSerialDisponible,
+  type AcordeEnCurso,
   type DispositivoBraille,
   type EstadoConexion,
-  type EstadoLector,
   type LectorSeisTeclas,
 } from '@braille/device';
 
-const LETRAS = signosDeSerie(1);
+/** Series del código generador, en el orden en que se enseñan. */
+const SERIES: readonly { serie: Serie; rango: string }[] = [
+  { serie: 1, rango: 'a–j' },
+  { serie: 2, rango: 'k–t' },
+  { serie: 3, rango: 'u–z' },
+];
 
 const TEXTO_ESTADO: Record<EstadoConexion, string> = {
   desconectado: 'desconectado',
@@ -38,6 +48,27 @@ const TEXTO_ESTADO: Record<EstadoConexion, string> = {
   moviendo: 'moviendo la celda…',
   error: 'error de conexión',
 };
+
+/**
+ * La celda de lectura acepta órdenes. Mientras se mueve también: el adaptador Web Serial pone la
+ * siguiente en cola, y así los botones no se deshabilitan (un botón con foco que se deshabilita
+ * deja al lector de pantalla sin foco).
+ */
+const puedeMoverCelda = (estado: EstadoConexion) => estado === 'listo' || estado === 'moviendo';
+
+/** Signos que se pueden levantar en la sección "Lectura", en el orden de enseñanza. */
+const GRUPOS_DE_SIGNOS: readonly { titulo: string; signos: readonly Signo[] }[] = [
+  ...SERIES.map(({ serie, rango }) => ({
+    titulo: `Serie ${serie} (${rango})`,
+    signos: signosDeSerie(serie),
+  })),
+  {
+    titulo: 'Letras con código propio',
+    signos: TABLA.filter((s) => s.categoria === 'letra-especial'),
+  },
+  { titulo: 'Prefijos', signos: TABLA.filter((s) => s.categoria === 'prefijo') },
+  { titulo: 'Puntuación', signos: TABLA.filter((s) => s.categoria === 'puntuacion') },
+];
 
 type OrigenAcorde = 'teclado' | 'celda virtual' | 'dispositivo';
 
@@ -52,8 +83,6 @@ const TEXTO_ORIGEN: Record<OrigenAcorde, string> = {
   dispositivo: 'con el dispositivo',
 };
 
-const SIN_TECLAS: EstadoLector = { presionados: 0, acorde: 0 };
-
 const mayuscula = (texto: string) => texto.charAt(0).toLocaleUpperCase('es') + texto.slice(1);
 const bit = (punto: number) => 1 << (punto - 1);
 
@@ -65,37 +94,43 @@ function describirSigno(signo: Signo): string {
 type EstadoPunto = 'presionado' | 'soltado' | 'escrito' | 'vacio';
 
 interface PropsVisor {
-  teclado: EstadoLector;
+  /** Acorde en curso con el teclado de seis teclas de esta pantalla. */
+  teclado: AcordeEnCurso;
+  /** Acorde en curso con los pulsadores del dispositivo. */
+  pulsadores: AcordeEnCurso;
   celdaVirtual: Mascara;
   ultimo: AcordeEscrito | null;
 }
 
 /**
- * Visor de la celda: muestra los puntos del acorde que se está escribiendo (teclado de seis teclas
- * o celda virtual) y, cuando no hay ninguno en curso, el último acorde escrito desde cualquier
- * entrada. El texto no es región live: los anuncios siguen saliendo por una sola voz.
+ * Visor de la celda: muestra los puntos del acorde que se está escribiendo (teclado de seis
+ * teclas, pulsadores del dispositivo o celda virtual) y, cuando no hay ninguno en curso, el último
+ * acorde escrito desde cualquier entrada. El texto no es región live: los anuncios siguen saliendo
+ * por una sola voz.
  */
-function VisorCelda({ teclado, celdaVirtual, ultimo }: PropsVisor) {
-  const enTeclado = teclado.acorde !== 0;
-  const enCurso = enTeclado ? teclado.acorde : celdaVirtual;
+function VisorCelda({ teclado, pulsadores, celdaVirtual, ultimo }: PropsVisor) {
+  let escritura: { estado: AcordeEnCurso; origen: OrigenAcorde } | null = null;
+  if (teclado.acorde !== 0) escritura = { estado: teclado, origen: 'teclado' };
+  else if (pulsadores.acorde !== 0) escritura = { estado: pulsadores, origen: 'dispositivo' };
 
   function estadoDe(p: number): EstadoPunto {
-    if (enTeclado) {
-      if (teclado.presionados & bit(p)) return 'presionado';
-      return teclado.acorde & bit(p) ? 'soltado' : 'vacio';
+    if (escritura) {
+      if (escritura.estado.presionados & bit(p)) return 'presionado';
+      return escritura.estado.acorde & bit(p) ? 'soltado' : 'vacio';
     }
-    if (enCurso !== 0) return enCurso & bit(p) ? 'presionado' : 'vacio';
+    if (celdaVirtual !== 0) return celdaVirtual & bit(p) ? 'presionado' : 'vacio';
     return ultimo && ultimo.mascara & bit(p) ? 'escrito' : 'vacio';
   }
 
   let texto: string;
-  if (enTeclado) {
-    const sueltos = teclado.acorde & ~teclado.presionados;
+  if (escritura) {
+    const { presionados, acorde } = escritura.estado;
+    const sueltos = acorde & ~presionados;
     texto =
-      `Escribiendo con el teclado: ${describirPuntos(teclado.acorde)}.` +
+      `Escribiendo ${TEXTO_ORIGEN[escritura.origen]}: ${describirPuntos(acorde)}.` +
       (sueltos ? ` Ya soltaste ${describirPuntos(sueltos)}, pero sigue en el acorde.` : '');
-  } else if (enCurso !== 0) {
-    texto = `Marcando en la celda virtual: ${describirPuntos(enCurso)}.`;
+  } else if (celdaVirtual !== 0) {
+    texto = `Marcando en la celda virtual: ${describirPuntos(celdaVirtual)}.`;
   } else if (ultimo) {
     const signo = signoPorMascara(ultimo.mascara);
     texto =
@@ -106,16 +141,102 @@ function VisorCelda({ teclado, celdaVirtual, ultimo }: PropsVisor) {
   }
 
   return (
-    <section aria-labelledby="t-visor" className="visor">
-      <h2 id="t-visor">Visor de la celda</h2>
-      <div className="celda celda-visor" aria-hidden="true">
+    <section aria-labelledby="t-visor" className="bloque">
+      <h3 id="t-visor">Visor de la celda</h3>
+      <div className="celda celda-grande celda-visor" aria-hidden="true">
         {PUNTOS.map((p) => (
           <span key={p} className="punto" data-estado={estadoDe(p)}>
             <span className="numero">{p}</span>
           </span>
         ))}
       </div>
-      <p>{texto}</p>
+      <p className="estado-celda">{texto}</p>
+    </section>
+  );
+}
+
+/** "d: puntos 1, 4 y 5" o "signo de mayúscula: puntos 4 y 6". */
+function etiquetaDeSigno(signo: Signo): string {
+  return `${esLetra(signo) ? signo.id : signo.nombre}: ${describirPuntos(signo.mascara)}`;
+}
+
+function describirCeldaLevantada(mascara: Mascara | null): string {
+  if (mascara === null) return 'Todavía no se ha levantado nada con este dispositivo.';
+  if (mascara === 0) return 'Todos los puntos están abajo.';
+  const signo = signoPorMascara(mascara);
+  return (
+    `En la celda: ${describirPuntos(mascara)}` +
+    (signo ? `, ${nombreConArticulo(signo)}.` : ', que no corresponde a ningún signo.')
+  );
+}
+
+interface PropsLectura {
+  /** Lo que la celda tiene levantado ahora; null si todavía no se movió con este dispositivo. */
+  levantada: Mascara | null;
+  esFisico: boolean;
+  habilitada: boolean;
+  onLevantar: (signo: Signo) => void;
+  onBajar: () => void;
+}
+
+/**
+ * Lectura: levanta cualquier signo de la tabla en la celda (en los servos o en el simulador),
+ * para tocarlo o para probar el montaje, y muestra lo que la celda tiene levantado ahora.
+ */
+function SeccionLectura({ levantada, esFisico, habilitada, onLevantar, onBajar }: PropsLectura) {
+  const [idSigno, setIdSigno] = useState(TABLA[0]!.id);
+  const signo = signoPorId(idSigno)!;
+
+  return (
+    <section aria-labelledby="t-lectura" className="panel">
+      <h2 id="t-lectura">Lectura</h2>
+      <p className="nota">
+        Elige un signo y levántalo en {esFisico ? 'los servos del dispositivo' : 'el simulador'}{' '}
+        para tocarlo.
+      </p>
+      <div className="formulario">
+        <label className="campo">
+          Signo
+          <select value={idSigno} onChange={(e) => setIdSigno(e.target.value)}>
+            {GRUPOS_DE_SIGNOS.map(({ titulo, signos }) => (
+              <optgroup key={titulo} label={titulo}>
+                {signos.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {etiquetaDeSigno(s)}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </label>
+        <div className="acciones">
+          <button
+            type="button"
+            className="principal"
+            onClick={() => onLevantar(signo)}
+            disabled={!habilitada}
+          >
+            Levantar en la celda
+          </button>
+          <button type="button" onClick={onBajar} disabled={!habilitada}>
+            Bajar todos los puntos
+          </button>
+        </div>
+      </div>
+      <div className="bloque">
+        <div className="celda celda-grande celda-lectura" aria-hidden="true">
+          {PUNTOS.map((p) => (
+            <span
+              key={p}
+              className="punto"
+              data-activo={levantada !== null && (levantada & bit(p)) !== 0}
+            >
+              {p}
+            </span>
+          ))}
+        </div>
+        <p className="estado-celda">{describirCeldaLevantada(levantada)}</p>
+      </div>
     </section>
   );
 }
@@ -124,27 +245,41 @@ export function App() {
   const simulador = useMemo(() => new SimuladorDispositivo(), []);
   const [dispositivo, setDispositivo] = useState<DispositivoBraille>(simulador);
   const [estado, setEstado] = useState<EstadoConexion>('desconectado');
+  const [serie, setSerie] = useState<Serie>(1);
   const [indice, setIndice] = useState(0);
   const [anuncio, setAnuncio] = useState('');
   const [celdaVirtual, setCeldaVirtual] = useState<Mascara>(0);
-  const [celdaMostrada, setCeldaMostrada] = useState<Mascara | null>(null);
-  const [teclado, setTeclado] = useState<EstadoLector>(SIN_TECLAS);
+  const [celdaLevantada, setCeldaLevantada] = useState<Mascara | null>(null);
+  const [teclado, setTeclado] = useState<AcordeEnCurso>(SIN_ACORDE);
+  const [pulsadores, setPulsadores] = useState<AcordeEnCurso>(SIN_ACORDE);
   const [ultimoAcorde, setUltimoAcorde] = useState<AcordeEscrito | null>(null);
   /** Entrada de pantalla que originó el próximo acorde; si no hay, vino del dispositivo. */
   const origenRef = useRef<OrigenAcorde | null>(null);
-  const objetivo = LETRAS[indice % LETRAS.length]!;
+  const letras = useMemo(() => signosDeSerie(serie), [serie]);
+  const objetivo = letras[indice % letras.length]!;
   const esFisico = dispositivo !== simulador;
 
   const objetivoRef = useRef(objetivo);
+  const letrasRef = useRef(letras);
   useEffect(() => {
     objetivoRef.current = objetivo;
-  }, [objetivo]);
+    letrasRef.current = letras;
+  }, [objetivo, letras]);
 
   /** Región ARIA live: el lector de pantalla lo lee con la voz que la persona ya configuró. */
   const anunciar = useCallback((texto: string) => {
     setAnuncio(''); // vaciar primero permite repetir un mensaje idéntico
     window.setTimeout(() => setAnuncio(texto), 60);
   }, []);
+
+  /** Mueve la celda de lectura; resuelve cuando quedó quieta y se puede tocar. */
+  const levantar = useCallback(
+    async (mascara: Mascara) => {
+      await dispositivo.mostrarCelda(mascara);
+      setCeldaLevantada(mascara);
+    },
+    [dispositivo],
+  );
 
   const manejarAcorde = useCallback(
     (mascara: Mascara) => {
@@ -154,15 +289,23 @@ export function App() {
       const evaluacion = evaluar(esperado.mascara, mascara);
       const mensaje = describirEvaluacion(evaluacion, esperado);
       if (evaluacion.tipo === 'acierto') {
-        const siguiente = LETRAS[(LETRAS.indexOf(esperado) + 1) % LETRAS.length]!;
+        const serieActual = letrasRef.current;
+        const siguiente = serieActual[(serieActual.indexOf(esperado) + 1) % serieActual.length]!;
         setIndice((i) => i + 1);
-        setCeldaMostrada(null);
         anunciar(`${mensaje} Ahora escribe ${nombreConArticulo(siguiente)}.`);
       } else {
         anunciar(`${mensaje} Intenta de nuevo ${nombreConArticulo(esperado)}.`);
       }
+      // Eco: la celda de lectura levanta lo que se escribió, para tocarlo. La retroalimentación
+      // no espera a los servos (RNF-02); sin dispositivo listo no se intenta, para que un error
+      // no tape el anuncio de la evaluación.
+      if (puedeMoverCelda(dispositivo.estado)) {
+        levantar(mascara).catch((error: Error) =>
+          anunciar(`No se pudo levantar en la celda lo que escribiste: ${error.message}`),
+        );
+      }
     },
-    [anunciar],
+    [anunciar, dispositivo, levantar],
   );
 
   const repetirInstruccion = useCallback(() => {
@@ -179,6 +322,7 @@ export function App() {
         }
       }),
       dispositivo.onAcorde(manejarAcorde),
+      dispositivo.onAcordeEnCurso(setPulsadores),
       dispositivo.onTecla((tecla) => {
         if (tecla === 'repeat') repetirInstruccion();
       }),
@@ -223,10 +367,17 @@ export function App() {
     return lectorRef.current;
   }
 
+  /** Lo que mostraba el dispositivo anterior ya no aplica al nuevo. */
+  function cambiarDispositivo(nuevo: DispositivoBraille) {
+    setDispositivo(nuevo);
+    setCeldaLevantada(null);
+    setPulsadores(SIN_ACORDE);
+  }
+
   async function conectarUsb() {
     try {
       const puerto = await solicitarPuertoSerie();
-      setDispositivo(new DispositivoWebSerial(puerto));
+      cambiarDispositivo(new DispositivoWebSerial(puerto));
     } catch (error) {
       anunciar(`No se abrió ningún puerto: ${(error as Error).message}`);
     }
@@ -234,14 +385,42 @@ export function App() {
 
   async function volverAlSimulador() {
     await dispositivo.desconectar();
-    setDispositivo(simulador);
+    cambiarDispositivo(simulador);
+  }
+
+  function cambiarSerie(nueva: Serie) {
+    const signos = signosDeSerie(nueva);
+    setSerie(nueva);
+    setIndice(0);
+    anunciar(
+      `Serie ${nueva}: de ${nombreConArticulo(signos[0]!)} a ${nombreConArticulo(signos.at(-1)!)}. ` +
+        `Escribe ${nombreConArticulo(signos[0]!)}.`,
+    );
   }
 
   async function mostrarEnCelda() {
     try {
-      await dispositivo.mostrarCelda(objetivo.mascara);
-      setCeldaMostrada(objetivo.mascara);
+      await levantar(objetivo.mascara);
       anunciar(`${describirSigno(objetivo)} Tócala y luego escríbela.`);
+    } catch (error) {
+      anunciar(`La celda no respondió: ${(error as Error).message}`);
+    }
+  }
+
+  async function levantarSigno(signo: Signo) {
+    try {
+      await levantar(signo.mascara);
+      anunciar(`${describirSigno(signo)} Ya puedes tocar la celda.`);
+    } catch (error) {
+      anunciar(`La celda no respondió: ${(error as Error).message}`);
+    }
+  }
+
+  async function bajarCelda() {
+    try {
+      await dispositivo.limpiar();
+      setCeldaLevantada(0);
+      anunciar('Todos los puntos están abajo.');
     } catch (error) {
       anunciar(`La celda no respondió: ${(error as Error).message}`);
     }
@@ -258,19 +437,29 @@ export function App() {
 
   return (
     <main>
-      <h1>Práctica de la serie a–j</h1>
-      <p className="nota">
-        Demo de integración: comprueba el núcleo Braille y el dispositivo. No es la interfaz final.
-      </p>
+      <header className="cabecera">
+        <div className="titulo">
+          <h1>Práctica de lectoescritura Braille</h1>
+          <p className="etiqueta-prueba">Versión de prueba</p>
+        </div>
+        <p className="nota">
+          Sirve para probar el núcleo Braille y el dispositivo. Todavía faltan las entidades de la
+          base de datos, el backend y el diseño final.
+        </p>
+      </header>
 
       <div role="status" aria-live="polite" aria-atomic="true" className="anuncio">
         {anuncio}
       </div>
 
-      <section aria-labelledby="t-dispositivo">
+      <section aria-labelledby="t-dispositivo" className="barra-dispositivo">
         <h2 id="t-dispositivo">Dispositivo</h2>
         <p>
-          Usando {esFisico ? 'el dispositivo por USB' : 'el simulador'}: {TEXTO_ESTADO[estado]}.
+          Usando {esFisico ? 'el dispositivo por USB' : 'el simulador'}:{' '}
+          <span className="estado-conexion" data-estado={estado}>
+            {TEXTO_ESTADO[estado]}
+          </span>
+          .
         </p>
         {esFisico ? (
           <button type="button" onClick={volverAlSimulador}>
@@ -288,81 +477,107 @@ export function App() {
         )}
       </section>
 
-      <section aria-labelledby="t-ejercicio">
-        <h2 id="t-ejercicio">Ejercicio</h2>
-        <p className="consigna">
-          Escribe <strong>{nombreConArticulo(objetivo)}</strong>.
-        </p>
-        <div className="acciones">
-          <button type="button" onClick={repetirInstruccion}>
-            Repetir instrucción
-          </button>
-          <button type="button" onClick={mostrarEnCelda} disabled={estado !== 'listo'}>
-            Mostrar en la celda
-          </button>
-        </div>
+      <div className="secciones">
+        <SeccionLectura
+          levantada={celdaLevantada}
+          esFisico={esFisico}
+          habilitada={puedeMoverCelda(estado)}
+          onLevantar={levantarSigno}
+          onBajar={bajarCelda}
+        />
 
-        {celdaMostrada !== null && (
-          <div className="celda-mostrada">
-            <div className="celda" aria-hidden="true">
-              {PUNTOS.map((p) => (
-                <span key={p} className="punto" data-activo={(celdaMostrada & bit(p)) !== 0} />
+        <section aria-labelledby="t-escritura" className="panel">
+          <h2 id="t-escritura">Escritura</h2>
+
+          <section aria-labelledby="t-ejercicio">
+            <h3 id="t-ejercicio">Ejercicio</h3>
+            <fieldset className="selector-serie">
+              <legend>Serie</legend>
+              {SERIES.map(({ serie: s, rango }) => (
+                <label key={s}>
+                  <input
+                    type="radio"
+                    name="serie"
+                    checked={serie === s}
+                    onChange={() => cambiarSerie(s)}
+                  />
+                  Serie {s} <span className="rango">{rango}</span>
+                </label>
               ))}
+            </fieldset>
+            <p className="consigna">
+              Escribe <strong>{nombreConArticulo(objetivo)}</strong>.
+            </p>
+            <div className="acciones">
+              <button type="button" onClick={repetirInstruccion}>
+                Repetir instrucción
+              </button>
+              <button type="button" onClick={mostrarEnCelda} disabled={!puedeMoverCelda(estado)}>
+                Mostrar en la celda
+              </button>
             </div>
-            <p>{describirSigno(objetivo)}</p>
-          </div>
-        )}
 
-        {/*
-          role="application" hace que NVDA y JAWS pasen a modo foco y dejen llegar F D S J K L
-          (en modo exploración esas letras son atajos de navegación). jsx-a11y lo trata como rol
-          no interactivo; la excepción es deliberada y debe validarse con NVDA y JAWS reales.
-        */}
-        {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
-        <div
-          className="area-escritura"
-          role="application"
-          tabIndex={0}
-          aria-label="Área de escritura. Usa F, D y S para los puntos 1, 2 y 3; J, K y L para los puntos 4, 5 y 6. Suelta todas las teclas para confirmar. Espacio repite la instrucción."
-          onKeyDown={(e) => {
-            if (lector().teclaAbajo(e.code, e.repeat)) e.preventDefault();
-            else if (e.code === 'Space') {
-              e.preventDefault();
-              repetirInstruccion();
-            }
-          }}
-          onKeyUp={(e) => {
-            if (lector().teclaArriba(e.code)) e.preventDefault();
-          }}
-          onBlur={() => lector().reiniciar()}
-        >
-          Área de escritura con teclado: F D S · J K L
-        </div>
-        {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
-      </section>
-
-      <VisorCelda teclado={teclado} celdaVirtual={celdaVirtual} ultimo={ultimoAcorde} />
-
-      <section aria-labelledby="t-celda">
-        <h2 id="t-celda">Celda virtual</h2>
-        <div className="celda celda-virtual" role="group" aria-labelledby="t-celda">
-          {PUNTOS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              className="punto"
-              aria-pressed={(celdaVirtual & bit(p)) !== 0}
-              onClick={() => setCeldaVirtual((c) => c ^ bit(p))}
+            {/*
+              role="application" hace que NVDA y JAWS pasen a modo foco y dejen llegar F D S J K L
+              (en modo exploración esas letras son atajos de navegación). jsx-a11y lo trata como rol
+              no interactivo; la excepción es deliberada y debe validarse con NVDA y JAWS reales.
+            */}
+            {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
+            <div
+              className="area-escritura"
+              role="application"
+              tabIndex={0}
+              aria-label="Área de escritura. Usa F, D y S para los puntos 1, 2 y 3; J, K y L para los puntos 4, 5 y 6. Suelta todas las teclas para confirmar. Espacio repite la instrucción."
+              onKeyDown={(e) => {
+                if (lector().teclaAbajo(e.code, e.repeat)) e.preventDefault();
+                else if (e.code === 'Space') {
+                  e.preventDefault();
+                  repetirInstruccion();
+                }
+              }}
+              onKeyUp={(e) => {
+                if (lector().teclaArriba(e.code)) e.preventDefault();
+              }}
+              onBlur={() => lector().reiniciar()}
             >
-              {p}
-            </button>
-          ))}
-        </div>
-        <p>Marcados: {celdaVirtual === 0 ? 'ninguno' : mascaraAPuntos(celdaVirtual).join(', ')}</p>
-        <button type="button" onClick={enviarCeldaVirtual}>
-          Enviar celda
-        </button>
-      </section>
+              Área de escritura con teclado: F D S · J K L
+            </div>
+            {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
+          </section>
+
+          <div className="rejilla-escritura">
+            <VisorCelda
+              teclado={teclado}
+              pulsadores={pulsadores}
+              celdaVirtual={celdaVirtual}
+              ultimo={ultimoAcorde}
+            />
+
+            <section aria-labelledby="t-celda" className="bloque">
+              <h3 id="t-celda">Celda virtual</h3>
+              <div className="celda celda-virtual" role="group" aria-labelledby="t-celda">
+                {PUNTOS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className="punto"
+                    aria-pressed={(celdaVirtual & bit(p)) !== 0}
+                    onClick={() => setCeldaVirtual((c) => c ^ bit(p))}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <p className="estado-celda">
+                Marcados: {celdaVirtual === 0 ? 'ninguno' : mascaraAPuntos(celdaVirtual).join(', ')}
+              </p>
+              <button type="button" onClick={enviarCeldaVirtual}>
+                Enviar celda
+              </button>
+            </section>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }

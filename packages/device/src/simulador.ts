@@ -1,6 +1,7 @@
 import { TECLAS_CONTROL } from '@braille/protocol';
 import {
   Emisor,
+  type AcordeEnCurso,
   type Cancelar,
   type DispositivoBraille,
   type EstadoConexion,
@@ -62,6 +63,14 @@ export class SimuladorDispositivo implements DispositivoBraille {
 
   onAcorde(cb: (mascara: Mascara) => void): Cancelar {
     return this.acordes.suscribir(cb);
+  }
+
+  /**
+   * El simulador no tiene teclas propias: la escritura de pantalla dibuja su acorde en curso
+   * directamente (el lector de seis teclas se lo entrega a la interfaz).
+   */
+  onAcordeEnCurso(_cb: (estado: AcordeEnCurso) => void): Cancelar {
+    return () => undefined;
   }
 
   onTecla(cb: (tecla: TeclaControl) => void): Cancelar {

@@ -16,6 +16,7 @@ export const ejemplosDispositivo = {
   info: { t: 'info', id: 1, proto: 1, fw: '0.1.0', keys: ['space', 'back', 'repeat', 'ok'] },
   ack: { t: 'ack', id: 7, ms: 420 },
   chord: { t: 'chord', m: 9 },
+  press: { t: 'press', p: 1, m: 9 },
   key: { t: 'key', k: 'space' },
   pong: { t: 'pong', id: 9 },
   err: { t: 'err', id: 7, code: 'SERVO_TIMEOUT' },

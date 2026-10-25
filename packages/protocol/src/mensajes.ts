@@ -52,6 +52,18 @@ export const esquemaAck = z.object({
 /** Acorde completo: se emite cuando se sueltan todas las teclas. Nunca vacío. */
 export const esquemaChord = z.object({ t: z.literal('chord'), m: esquemaMascara.min(1) });
 
+/**
+ * Acorde en curso: se emite cada vez que cambian las teclas de puntos presionadas, salvo al
+ * soltar la última (entonces se emite `chord`). Sirve para dibujarlo mientras se escribe.
+ */
+export const esquemaPress = z.object({
+  t: z.literal('press'),
+  /** Puntos cuyas teclas siguen presionadas. */
+  p: esquemaMascara.min(1),
+  /** Acorde que se enviaría en `chord` si se soltaran todas ahora. */
+  m: esquemaMascara.min(1),
+});
+
 export const esquemaKey = z.object({ t: z.literal('key'), k: esquemaTecla });
 
 export const esquemaPong = z.object({ t: z.literal('pong'), id: esquemaId });
@@ -68,6 +80,7 @@ export const esquemaMensajeDispositivo = z.discriminatedUnion('t', [
   esquemaInfo,
   esquemaAck,
   esquemaChord,
+  esquemaPress,
   esquemaKey,
   esquemaPong,
   esquemaErr,

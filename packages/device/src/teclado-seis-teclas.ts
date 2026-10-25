@@ -1,4 +1,4 @@
-import type { Mascara } from './puerto';
+import type { AcordeEnCurso, Mascara } from './puerto';
 
 /**
  * Entrada de seis teclas estilo Perkins: F, D, S = puntos 1, 2, 3; J, K, L = puntos 4, 5, 6.
@@ -20,14 +20,6 @@ export interface LectorSeisTeclas {
   reiniciar(): void;
 }
 
-/** Lo que el lector lleva del acorde en curso (para dibujarlo mientras se escribe). */
-export interface EstadoLector {
-  /** Puntos cuyas teclas siguen presionadas ahora mismo. */
-  presionados: Mascara;
-  /** Puntos del acorde que se emitiría si se soltaran todas las teclas ahora. */
-  acorde: Mascara;
-}
-
 /**
  * Emite el acorde cuando se sueltan todas las teclas, igual que el firmware con los pulsadores
  * (docs/PROTOCOLO.md § 4, Escritura). El acorde son las teclas que estaban presionadas a la vez
@@ -36,7 +28,7 @@ export interface EstadoLector {
  */
 export function crearLectorSeisTeclas(
   onAcorde: (mascara: Mascara) => void,
-  onCambio?: (estado: EstadoLector) => void,
+  onCambio?: (estado: AcordeEnCurso) => void,
 ): LectorSeisTeclas {
   const presionadas = new Set<string>();
   let acorde = 0;

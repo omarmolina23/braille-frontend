@@ -16,6 +16,17 @@ export interface InfoDispositivo {
   teclas: readonly TeclaControl[];
 }
 
+/** Acorde que se está escribiendo, para dibujarlo antes de que se suelten todas las teclas. */
+export interface AcordeEnCurso {
+  /** Puntos cuyas teclas siguen presionadas ahora mismo. */
+  presionados: Mascara;
+  /** Puntos del acorde que se emitiría si se soltaran todas las teclas ahora. */
+  acorde: Mascara;
+}
+
+/** Ninguna tecla de puntos presionada. */
+export const SIN_ACORDE: AcordeEnCurso = { presionados: 0, acorde: 0 };
+
 /** Función que cancela una suscripción. */
 export type Cancelar = () => void;
 
@@ -38,6 +49,11 @@ export interface DispositivoBraille {
   limpiar(): Promise<void>;
   /** Acorde completo escrito por la persona (se emite al soltar todas las teclas). */
   onAcorde(cb: (mascara: Mascara) => void): Cancelar;
+  /**
+   * Teclas de puntos del dispositivo mientras se escribe un acorde. Al terminar (con el acorde
+   * completo o al perder la conexión) se emite `SIN_ACORDE`.
+   */
+  onAcordeEnCurso(cb: (estado: AcordeEnCurso) => void): Cancelar;
   onTecla(cb: (tecla: TeclaControl) => void): Cancelar;
   onEstado(cb: (estado: EstadoConexion) => void): Cancelar;
   readonly estado: EstadoConexion;

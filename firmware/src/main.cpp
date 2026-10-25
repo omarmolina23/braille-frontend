@@ -110,6 +110,7 @@ static Pulsador controles[4] = {
     {PIN_TECLA_ESPACIO}, {PIN_TECLA_BORRAR}, {PIN_TECLA_REPETIR}, {PIN_TECLA_CONFIRMAR}};
 static const char *NOMBRE_CONTROL[4] = {"space", "back", "repeat", "ok"};
 static uint8_t acorde = 0;
+static uint8_t presionadosAntes = 0;
 
 static void configurarPulsador(const Pulsador &b) {
     if (b.pin < 0) return;
@@ -143,14 +144,22 @@ static void leerPulsadores() {
     // El acorde son las teclas presionadas a la vez tras la última pulsación: soltarlas una por
     // una no las quita, pero una tecla soltada antes de presionar otra ya no cuenta.
     if (nuevaPulsacion) acorde = presionados;
-    // El acorde se cierra cuando se sueltan TODAS las teclas de puntos.
+    // El acorde se cierra cuando se sueltan TODAS las teclas de puntos. Mientras sigue abierto,
+    // cada cambio se reporta con `press` para que la app dibuje el acorde en curso.
     if (presionados == 0 && acorde != 0) {
         JsonDocument doc;
         doc["t"] = "chord";
         doc["m"] = acorde;
         enviar(doc);
         acorde = 0;
+    } else if (presionados != presionadosAntes && presionados != 0) {
+        JsonDocument doc;
+        doc["t"] = "press";
+        doc["p"] = presionados;
+        doc["m"] = acorde;
+        enviar(doc);
     }
+    presionadosAntes = presionados;
     for (int k = 0; k < 4; k++) {
         if (actualizar(controles[k]) && !controles[k].estable) {  // al soltar
             JsonDocument doc;
