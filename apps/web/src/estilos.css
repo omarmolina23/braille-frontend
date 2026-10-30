@@ -152,7 +152,8 @@ select {
   margin: 0;
 }
 
-.barra-dispositivo button {
+.barra-dispositivo > button,
+.barra-dispositivo > .acciones {
   margin-inline-start: auto;
 }
 
