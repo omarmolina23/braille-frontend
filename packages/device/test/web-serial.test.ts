@@ -5,6 +5,7 @@ import {
   ErrorIncompatible,
   ErrorProtocolo,
   SIN_ACORDE,
+  solicitarPuertoSerie,
   type AcordeEnCurso,
   type EstadoConexion,
   type OpcionesWebSerial,
@@ -31,6 +32,7 @@ function montar(firmware: OpcionesFirmwareFalso = {}, adaptador: OpcionesWebSeri
 }
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
   await Promise.all(abiertos.splice(0).map((d) => d.desconectar()));
 });
 
@@ -61,6 +63,23 @@ describe('conexión', () => {
     await expect(dispositivo.conectar()).rejects.toBeInstanceOf(ErrorProtocolo);
     expect(dispositivo.estado).toBe('error');
   });
+
+  it('explica en español que el puerto está ocupado', async () => {
+    const { dispositivo } = montar({ puertoOcupado: true });
+    await expect(dispositivo.conectar()).rejects.toThrow(/^El puerto está ocupado/);
+    expect(dispositivo.estado).toBe('error');
+  });
+
+  it('explica en español que se cerró la lista de puertos', async () => {
+    vi.stubGlobal('navigator', {
+      serial: {
+        requestPort: () =>
+          Promise.reject(new DOMException('No port selected by the user.', 'NotFoundError')),
+        getPorts: () => Promise.resolve([]),
+      },
+    });
+    await expect(solicitarPuertoSerie()).rejects.toThrow('Se cerró la lista sin elegir un puerto.');
+  });
 });
 
 describe('lectura: mostrar una celda', () => {
@@ -79,10 +98,27 @@ describe('lectura: mostrar una celda', () => {
     const { falso, dispositivo } = montar({ responderAck: false });
     await dispositivo.conectar();
 
-    await expect(dispositivo.mostrarCelda(9)).rejects.toThrow(/Sin respuesta "ack"/);
+    await expect(dispositivo.mostrarCelda(9)).rejects.toThrow(/no confirmó a tiempo/);
 
     expect(falso.recibidos.filter((m) => m.t === 'cell')).toHaveLength(2);
     expect(dispositivo.estado).toBe('listo');
+  });
+
+  it('anuncia en español el código de error del firmware', async () => {
+    const { falso, dispositivo } = montar({ responderAck: false });
+    await dispositivo.conectar();
+
+    const rechazo = expect(dispositivo.mostrarCelda(9)).rejects.toThrow(
+      'Los servos no llegaron a su posición a tiempo.',
+    );
+    const orden = await vi.waitFor(() => {
+      const cell = falso.recibidos.find((m) => m.t === 'cell');
+      if (!cell) throw new Error('Todavía no llega el cell.');
+      return cell;
+    });
+    falso.emitir({ t: 'err', id: orden.id, code: 'SERVO_TIMEOUT' });
+
+    await rechazo;
   });
 
   it('envía un comando a la vez aunque se pidan varios seguidos', async () => {
