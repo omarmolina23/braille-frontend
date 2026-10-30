@@ -29,6 +29,8 @@ export interface OpcionesFirmwareFalso {
   retardoArranqueMs?: number;
   /** Entrega cada mensaje en dos fragmentos, como hace un puerto serie real. */
   fragmentar?: boolean;
+  /** true simula un puerto que ya abrió otro programa (p. ej. el monitor serie). */
+  puertoOcupado?: boolean;
 }
 
 const REGISTRO_ROM = [
@@ -77,6 +79,7 @@ export class FirmwareFalso {
       reiniciarAlAbrir: opciones.reiniciarAlAbrir ?? true,
       retardoArranqueMs: opciones.retardoArranqueMs ?? 10,
       fragmentar: opciones.fragmentar ?? true,
+      puertoOcupado: opciones.puertoOcupado ?? false,
     };
   }
 
@@ -86,6 +89,10 @@ export class FirmwareFalso {
     const firmware = this;
     return {
       async open() {
+        if (firmware.o.puertoOcupado) {
+          // Lo que lanza Chrome cuando el sistema operativo no deja abrir el puerto.
+          throw new DOMException('Failed to open serial port.', 'NetworkError');
+        }
         firmware.legible = new ReadableStream<Uint8Array>({
           start: (c) => {
             firmware.controlador = c;

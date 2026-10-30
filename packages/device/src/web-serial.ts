@@ -9,6 +9,7 @@ import {
   VERSION_PROTOCOLO,
   codificar,
   decodificarDispositivo,
+  type CODIGOS_ERROR,
   type MensajeApp,
   type MensajeDispositivo,
 } from '@braille/protocol';
@@ -57,7 +58,57 @@ export class ErrorIncompatible extends ErrorProtocolo {
 }
 class ErrorReinicio extends ErrorProtocolo {}
 
+/**
+ * La Web Serial API rechaza con una DOMException cuyo mensaje está en inglés ("Failed to open
+ * serial port."). Lo que se anuncia sale de aquí, según la acción y el `name` de la excepción.
+ */
+const MENSAJES_NAVEGADOR = {
+  elegir: {
+    NotFoundError: 'Se cerró la lista sin elegir un puerto.',
+    SecurityError: 'El navegador no dio permiso para usar los puertos USB.',
+    otro: 'El navegador no pudo mostrar la lista de puertos.',
+  },
+  abrir: {
+    InvalidStateError: 'El puerto ya estaba abierto.',
+    NetworkError:
+      'El puerto está ocupado o no responde. Cierra el monitor serie o la otra pestaña que lo use y vuelve a intentarlo.',
+    otro: 'El navegador no pudo abrir el puerto.',
+  },
+  escribir: { otro: 'Se perdió la conexión con el dispositivo.' },
+};
+
+function traducirErrorNavegador(
+  error: unknown,
+  accion: keyof typeof MENSAJES_NAVEGADOR,
+): ErrorProtocolo {
+  if (error instanceof ErrorProtocolo) return error;
+  const mensajes: Partial<Record<string, string>> = MENSAJES_NAVEGADOR[accion];
+  const nombre = error instanceof Error ? error.name : '';
+  return new ErrorProtocolo(mensajes[nombre] ?? MENSAJES_NAVEGADOR[accion].otro, { cause: error });
+}
+
+/** Lo que se anuncia ante cada código de `err` del firmware (PROTOCOLO § 3). */
+const MENSAJES_CODIGO: Record<(typeof CODIGOS_ERROR)[number], string> = {
+  SERVO_TIMEOUT: 'Los servos no llegaron a su posición a tiempo.',
+  BUSY: 'El dispositivo todavía estaba moviendo la celda.',
+  BAD_MESSAGE: 'El dispositivo no entendió la orden.',
+  UNKNOWN_TYPE: 'El dispositivo no reconoce esa orden.',
+};
+
+function mensajeDeCodigo(codigo: string): string {
+  return (
+    (MENSAJES_CODIGO as Partial<Record<string, string>>)[codigo] ??
+    'El dispositivo informó un error que la app no conoce.'
+  );
+}
+
 type TipoRespuesta = 'info' | 'ack' | 'pong';
+
+const SIN_RESPUESTA: Record<TipoRespuesta, string> = {
+  info: 'El dispositivo no respondió al saludo.',
+  ack: 'El dispositivo no confirmó a tiempo que terminó de mover la celda.',
+  pong: 'El dispositivo dejó de responder.',
+};
 type RespuestaDe<T extends TipoRespuesta> = Extract<MensajeDispositivo, { t: T }>;
 
 interface Pendiente {
@@ -114,7 +165,9 @@ export class DispositivoWebSerial implements DispositivoBraille {
     }
     this.cambiarEstado('conectando');
     try {
-      await this.puerto.open({ baudRate: BAUDIOS });
+      await this.puerto.open({ baudRate: BAUDIOS }).catch((error: unknown) => {
+        throw traducirErrorNavegador(error, 'abrir');
+      });
       // Evita (si la placa lo permite) que abrir el puerto reinicie el ESP32.
       await this.puerto
         .setSignals?.({ dataTerminalReady: false, requestToSend: false })
@@ -225,9 +278,7 @@ export class DispositivoWebSerial implements DispositivoBraille {
     return new Promise<RespuestaDe<T>>((resolver, rechazar) => {
       const temporizador = setTimeout(() => {
         this.pendientes.delete(id);
-        rechazar(
-          new ErrorTiempoAgotado(`Sin respuesta "${tipo}" al mensaje ${mensaje.t} (${id}).`),
-        );
+        rechazar(new ErrorTiempoAgotado(SIN_RESPUESTA[tipo]));
       }, timeoutMs);
       this.pendientes.set(id, {
         tipo,
@@ -245,7 +296,11 @@ export class DispositivoWebSerial implements DispositivoBraille {
 
   private async escribir(mensaje: MensajeApp): Promise<void> {
     if (!this.escritor) throw new ErrorProtocolo('El puerto no está abierto.');
-    await this.escritor.write(this.codificador.encode(codificar(mensaje)));
+    await this.escritor
+      .write(this.codificador.encode(codificar(mensaje)))
+      .catch((error: unknown) => {
+        throw traducirErrorNavegador(error, 'escribir');
+      });
   }
 
   private async leer(flujo: ReadableStream<Uint8Array>): Promise<void> {
@@ -296,7 +351,7 @@ export class DispositivoWebSerial implements DispositivoBraille {
         }
         clearTimeout(pendiente.temporizador);
         this.pendientes.delete(mensaje.id);
-        pendiente.rechazar(new ErrorProtocolo(`El dispositivo respondió ${mensaje.code}.`));
+        pendiente.rechazar(new ErrorProtocolo(mensajeDeCodigo(mensaje.code)));
         return;
       }
       case 'press':
@@ -412,11 +467,20 @@ export function webSerialDisponible(): boolean {
 /** Abre el selector de puertos del navegador. Debe llamarse desde un gesto del usuario. */
 export async function solicitarPuertoSerie(): Promise<PuertoSerie> {
   const serial = serialDelNavegador();
-  if (!serial) throw new ErrorProtocolo('Este navegador no soporta Web Serial.');
-  return serial.requestPort();
+  if (!serial)
+    throw new ErrorProtocolo('Este navegador no permite conectar el dispositivo por USB.');
+  try {
+    return await serial.requestPort();
+  } catch (error) {
+    throw traducirErrorNavegador(error, 'elegir');
+  }
 }
 
 /** Puertos que la persona ya autorizó: permiten reconectar sin volver a abrir el selector. */
 export async function puertosSerieAutorizados(): Promise<PuertoSerie[]> {
-  return (await serialDelNavegador()?.getPorts()) ?? [];
+  try {
+    return (await serialDelNavegador()?.getPorts()) ?? [];
+  } catch (error) {
+    throw traducirErrorNavegador(error, 'elegir');
+  }
 }

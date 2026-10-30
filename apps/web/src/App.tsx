@@ -26,12 +26,14 @@ import {
   SIN_ACORDE,
   SimuladorDispositivo,
   crearLectorSeisTeclas,
+  puertosSerieAutorizados,
   solicitarPuertoSerie,
   webSerialDisponible,
   type AcordeEnCurso,
   type DispositivoBraille,
   type EstadoConexion,
   type LectorSeisTeclas,
+  type PuertoSerie,
 } from '@braille/device';
 
 /** Series del código generador, en el orden en que se enseñan. */
@@ -56,12 +58,20 @@ const TEXTO_ESTADO: Record<EstadoConexion, string> = {
  */
 const puedeMoverCelda = (estado: EstadoConexion) => estado === 'listo' || estado === 'moviendo';
 
+interface GrupoDeSignos {
+  titulo: string;
+  signos: readonly Signo[];
+}
+
+/** Letras de las tres series: las que se pueden dictar en el ejercicio de escritura. */
+const GRUPOS_DE_SERIES: readonly GrupoDeSignos[] = SERIES.map(({ serie, rango }) => ({
+  titulo: `Serie ${serie} (${rango})`,
+  signos: signosDeSerie(serie),
+}));
+
 /** Signos que se pueden levantar en la sección "Lectura", en el orden de enseñanza. */
-const GRUPOS_DE_SIGNOS: readonly { titulo: string; signos: readonly Signo[] }[] = [
-  ...SERIES.map(({ serie, rango }) => ({
-    titulo: `Serie ${serie} (${rango})`,
-    signos: signosDeSerie(serie),
-  })),
+const GRUPOS_DE_SIGNOS: readonly GrupoDeSignos[] = [
+  ...GRUPOS_DE_SERIES,
   {
     titulo: 'Letras con código propio',
     signos: TABLA.filter((s) => s.categoria === 'letra-especial'),
@@ -160,6 +170,18 @@ function etiquetaDeSigno(signo: Signo): string {
   return `${esLetra(signo) ? signo.id : signo.nombre}: ${describirPuntos(signo.mascara)}`;
 }
 
+function OpcionesDeSignos({ grupos }: { grupos: readonly GrupoDeSignos[] }) {
+  return grupos.map(({ titulo, signos }) => (
+    <optgroup key={titulo} label={titulo}>
+      {signos.map((s) => (
+        <option key={s.id} value={s.id}>
+          {etiquetaDeSigno(s)}
+        </option>
+      ))}
+    </optgroup>
+  ));
+}
+
 function describirCeldaLevantada(mascara: Mascara | null): string {
   if (mascara === null) return 'Todavía no se ha levantado nada con este dispositivo.';
   if (mascara === 0) return 'Todos los puntos están abajo.';
@@ -176,14 +198,23 @@ interface PropsLectura {
   esFisico: boolean;
   habilitada: boolean;
   onLevantar: (signo: Signo) => void;
+  onLevantarPunto: (punto: number) => void;
   onBajar: () => void;
 }
 
 /**
- * Lectura: levanta cualquier signo de la tabla en la celda (en los servos o en el simulador),
- * para tocarlo o para probar el montaje, y muestra lo que la celda tiene levantado ahora.
+ * Lectura: levanta cualquier signo de la tabla o un solo punto en la celda (en los servos o en el
+ * simulador), para tocarlo o para probar el montaje, y muestra lo que la celda tiene levantado
+ * ahora.
  */
-function SeccionLectura({ levantada, esFisico, habilitada, onLevantar, onBajar }: PropsLectura) {
+function SeccionLectura({
+  levantada,
+  esFisico,
+  habilitada,
+  onLevantar,
+  onLevantarPunto,
+  onBajar,
+}: PropsLectura) {
   const [idSigno, setIdSigno] = useState(TABLA[0]!.id);
   const signo = signoPorId(idSigno)!;
 
@@ -198,15 +229,7 @@ function SeccionLectura({ levantada, esFisico, habilitada, onLevantar, onBajar }
         <label className="campo">
           Signo
           <select value={idSigno} onChange={(e) => setIdSigno(e.target.value)}>
-            {GRUPOS_DE_SIGNOS.map(({ titulo, signos }) => (
-              <optgroup key={titulo} label={titulo}>
-                {signos.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {etiquetaDeSigno(s)}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
+            <OpcionesDeSignos grupos={GRUPOS_DE_SIGNOS} />
           </select>
         </label>
         <div className="acciones">
@@ -237,6 +260,26 @@ function SeccionLectura({ levantada, esFisico, habilitada, onLevantar, onBajar }
         </div>
         <p className="estado-celda">{describirCeldaLevantada(levantada)}</p>
       </div>
+      <section aria-labelledby="t-puntos" className="bloque">
+        <h3 id="t-puntos">Puntos sueltos</h3>
+        <p className="nota">
+          Levanta un solo punto, para reconocer su posición o revisar que cada servo sube y baja.
+        </p>
+        <div className="celda" role="group" aria-labelledby="t-puntos">
+          {PUNTOS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              className="punto"
+              aria-label={`Levantar el punto ${p}`}
+              onClick={() => onLevantarPunto(p)}
+              disabled={!habilitada}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </section>
     </section>
   );
 }
@@ -318,7 +361,9 @@ export function App() {
       dispositivo.onEstado((nuevo) => {
         setEstado(nuevo);
         if (nuevo === 'desconectado' && dispositivo !== simulador) {
-          anunciar('Se desconectó el dispositivo. Puedes seguir con la celda virtual.');
+          anunciar(
+            'Se desconectó el dispositivo. Puedes reconectarlo o seguir con la celda virtual.',
+          );
         }
       }),
       dispositivo.onAcorde(manejarAcorde),
@@ -374,13 +419,24 @@ export function App() {
     setPulsadores(SIN_ACORDE);
   }
 
-  async function conectarUsb() {
+  async function usarPuerto(obtenerPuerto: () => Promise<PuertoSerie>) {
     try {
-      const puerto = await solicitarPuertoSerie();
-      cambiarDispositivo(new DispositivoWebSerial(puerto));
+      cambiarDispositivo(new DispositivoWebSerial(await obtenerPuerto()));
     } catch (error) {
       anunciar(`No se abrió ningún puerto: ${(error as Error).message}`);
     }
+  }
+
+  async function conectarUsb() {
+    await usarPuerto(solicitarPuertoSerie);
+  }
+
+  /** Tras una desconexión: si hay un solo puerto autorizado, se usa sin abrir el selector. */
+  async function reconectar() {
+    await usarPuerto(async () => {
+      const autorizados = await puertosSerieAutorizados();
+      return autorizados.length === 1 ? autorizados[0]! : solicitarPuertoSerie();
+    });
   }
 
   async function volverAlSimulador() {
@@ -398,6 +454,17 @@ export function App() {
     );
   }
 
+  /**
+   * Fija la letra que se va a escribir, de cualquier serie. No anuncia nada: el cuadro combinado
+   * ya dice la letra al cambiarla, y así recorrerlo con las flechas no llena la región live.
+   */
+  function dictarLetra(id: string) {
+    const signo = signoPorId(id)!;
+    const serieDeLetra = signo.serie!;
+    setSerie(serieDeLetra);
+    setIndice(signosDeSerie(serieDeLetra).findIndex((s) => s.id === id));
+  }
+
   async function mostrarEnCelda() {
     try {
       await levantar(objetivo.mascara);
@@ -411,6 +478,15 @@ export function App() {
     try {
       await levantar(signo.mascara);
       anunciar(`${describirSigno(signo)} Ya puedes tocar la celda.`);
+    } catch (error) {
+      anunciar(`La celda no respondió: ${(error as Error).message}`);
+    }
+  }
+
+  async function levantarPunto(punto: number) {
+    try {
+      await levantar(bit(punto));
+      anunciar(`${mayuscula(describirPuntos(bit(punto)))}. Ya puedes tocar la celda.`);
     } catch (error) {
       anunciar(`La celda no respondió: ${(error as Error).message}`);
     }
@@ -462,9 +538,16 @@ export function App() {
           .
         </p>
         {esFisico ? (
-          <button type="button" onClick={volverAlSimulador}>
-            Volver al simulador
-          </button>
+          <div className="acciones">
+            {(estado === 'desconectado' || estado === 'error') && (
+              <button type="button" className="principal" onClick={reconectar}>
+                Reconectar
+              </button>
+            )}
+            <button type="button" onClick={volverAlSimulador}>
+              Volver al simulador
+            </button>
+          </div>
         ) : webSerialDisponible() ? (
           <button type="button" onClick={conectarUsb}>
             Conectar dispositivo por USB
@@ -483,6 +566,7 @@ export function App() {
           esFisico={esFisico}
           habilitada={puedeMoverCelda(estado)}
           onLevantar={levantarSigno}
+          onLevantarPunto={levantarPunto}
           onBajar={bajarCelda}
         />
 
@@ -505,6 +589,14 @@ export function App() {
                 </label>
               ))}
             </fieldset>
+            <div className="formulario">
+              <label className="campo">
+                Letra que se dicta
+                <select value={objetivo.id} onChange={(e) => dictarLetra(e.target.value)}>
+                  <OpcionesDeSignos grupos={GRUPOS_DE_SERIES} />
+                </select>
+              </label>
+            </div>
             <p className="consigna">
               Escribe <strong>{nombreConArticulo(objetivo)}</strong>.
             </p>
