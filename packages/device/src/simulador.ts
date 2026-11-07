@@ -1,5 +1,6 @@
 import { TECLAS_CONTROL } from '@braille/protocol';
 import { ErrorConexionCerrada, ErrorProtocolo } from './errores';
+import { exigirMascaraValida } from './mascara';
 import {
   Emisor,
   type AcordeEnCurso,
@@ -59,6 +60,11 @@ export class SimuladorDispositivo implements DispositivoBraille {
   }
 
   mostrarCelda(mascara: Mascara): Promise<void> {
+    try {
+      exigirMascaraValida(mascara);
+    } catch (error) {
+      return Promise.reject(error);
+    }
     return this.enCola(() => this.mover(mascara));
   }
 
