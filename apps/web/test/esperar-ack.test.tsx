@@ -112,7 +112,9 @@ describe('RF-04: texto de la celda', () => {
 describe('RF-04: retroalimentación al escribir', () => {
   it('no espera al ack de la celda y no invita a tocar', async () => {
     const usuario = userEvent.setup();
-    const { falso, anuncios } = await montarYConectar({ retardoAckMs: RETARDO_ACK_MS }, usuario);
+    // Un ack lento de verdad (1 s, menor que el timeout de 1,5 s): con máquina cargada, la
+    // retroalimentación puede tardar más de 300 ms en aparecer.
+    const { falso, anuncios } = await montarYConectar({ retardoAckMs: 1_000 }, usuario);
 
     falso.emitir({ t: 'chord', m: 2 }); // la letra pedida es la a (punto 1): se escribe mal
     const retroalimentacion = await screen.findByText(/Intenta de nuevo/, {}, ESPERA);

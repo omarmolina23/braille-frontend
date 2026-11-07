@@ -25,6 +25,7 @@ Cada `release/*` mueve lo de "Sin publicar" a su versión.
 
 ### Corregido
 
+- El aviso de "sin dispositivo" al entrar espera 1,5 s: NVDA descartaba el que llegaba justo al cargar la página y solo se oía al señalarlo con el mouse. Si la persona ya empezó a conectar, el aviso no se repite (RF-34).
 - `mostrarCelda` rechaza al instante una máscara que no sea un entero de 0 a 63 (`ErrorProtocolo`), en el dispositivo real y en el simulador. Antes el firmware respondía `BAD_MESSAGE` sin `id` y la app tardaba dos timeouts en decir "no confirmó a tiempo" (RF-05).
 - El simulador se comporta como el dispositivo real: pasa por `conectando`, rechaza conectar dos veces, pone las órdenes en cola, usa los mismos errores y, si se desconecta durante un movimiento, rechaza la orden con `ErrorConexionCerrada` sin volver a `listo` (RF-03).
 - Al retirar el cable con una orden en curso, el adaptador ya no pasa por el estado `listo` y la orden se rechaza con `ErrorConexionCerrada`; la interfaz no anuncia ese fallo además del aviso de desconexión (RF-02).

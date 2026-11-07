@@ -54,6 +54,12 @@ const MENSAJE_DESCONEXION =
   'Se desconectó el dispositivo. Revisa el cable y activa «Reconectar». Tu ejercicio sigue donde lo dejaste.';
 const MENSAJE_ACTUALIZACION = 'El dispositivo necesita una actualización. Pide ayuda a tu tutor.';
 
+/**
+ * Al cargar la página NVDA está leyendo el título y descarta un aviso de la región en vivo que
+ * llega enseguida (N-24). El aviso inicial espera a que termine esa lectura.
+ */
+const RETARDO_AVISO_INICIAL_MS = 1_500;
+
 const TEXTO_ESTADO: Record<EstadoConexion, string> = {
   desconectado: 'desconectado',
   conectando: 'conectando…',
@@ -327,7 +333,8 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
   const enfocarAreaRef = useRef(false);
   const reconectarRef = useRef<HTMLButtonElement>(null);
   const practicaAnteriorRef = useRef(false);
-  const verificadoAlEntrarRef = useRef(false);
+  /** true cuando la persona ya empezó a conectar: el aviso inicial deja de tener sentido. */
+  const intentoDeConexionRef = useRef(false);
   const letras = useMemo(() => signosDeSerie(serie), [serie]);
   const objetivo = letras[indice % letras.length]!;
   const esFisico = dispositivo !== simulador;
@@ -401,9 +408,12 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
   // Al entrar sin simulador se verifica el dispositivo y se anuncia el resultado. No se abre el
   // puerto sin un clic (RF-01): conectar exige un gesto de la persona.
   useEffect(() => {
-    if (permitirSimulador || verificadoAlEntrarRef.current) return;
-    verificadoAlEntrarRef.current = true;
-    anunciar(webSerialDisponible() ? MENSAJE_SIN_DISPOSITIVO : MENSAJE_SIN_WEB_SERIAL);
+    if (permitirSimulador) return;
+    const temporizador = window.setTimeout(() => {
+      if (intentoDeConexionRef.current) return;
+      anunciar(webSerialDisponible() ? MENSAJE_SIN_DISPOSITIVO : MENSAJE_SIN_WEB_SERIAL);
+    }, RETARDO_AVISO_INICIAL_MS);
+    return () => window.clearTimeout(temporizador);
   }, [permitirSimulador, anunciar]);
 
   // Suscripción a los eventos del dispositivo activo y conexión inicial.
@@ -491,6 +501,7 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
   }
 
   async function usarPuerto(obtenerPuerto: () => Promise<PuertoSerie>) {
+    intentoDeConexionRef.current = true;
     try {
       cambiarDispositivo(new DispositivoWebSerial(await obtenerPuerto()));
     } catch (error) {

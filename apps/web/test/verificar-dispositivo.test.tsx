@@ -1,6 +1,6 @@
 // RF-34: el dispositivo es obligatorio. Se verifica al entrar y la práctica solo existe con el
 // dispositivo listo (ADR-0012). "Producción" es `permitirSimulador={false}`: sin simulador.
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import axe from 'axe-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -196,4 +196,37 @@ describe('RF-34: accesibilidad de la pantalla sin dispositivo', () => {
       screen.getByRole('button', { name: NOMBRE_BOTON_CONECTAR }),
     );
   });
+});
+
+describe('RF-34: el aviso inicial espera a que NVDA termine de leer la página', () => {
+  it('no se anuncia al montar y sale pasado el retraso, una sola vez', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('navigator', { serial: { requestPort: vi.fn(), getPorts: vi.fn() } });
+      render(<App permitirSimulador={false} />);
+      const region = screen.getByRole('status');
+
+      await act(() => vi.advanceTimersByTimeAsync(1_000));
+      expect(region.textContent).toBe('');
+
+      await act(() => vi.advanceTimersByTimeAsync(1_000));
+      expect(region.textContent).toBe(SIN_DISPOSITIVO);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('si la persona ya empezó a conectar, el aviso retrasado no pisa el resultado', async () => {
+    const usuario = userEvent.setup();
+    const { puerto } = puertoFalso();
+    simularSerial(() => Promise.resolve(puerto));
+    render(<App permitirSimulador={false} />);
+    const anuncios = registrarAnuncios(screen.getByRole('status'));
+
+    await conectarDispositivo(usuario);
+    await new Promise((r) => setTimeout(r, 2_000));
+
+    expect(screen.getByRole('status').textContent).toMatch(/^Dispositivo listo\./);
+    expect(anuncios).not.toContain(SIN_DISPOSITIVO);
+  }, 10_000);
 });
