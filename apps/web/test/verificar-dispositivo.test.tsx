@@ -29,8 +29,9 @@ afterEach(() => {
 });
 
 const hayPractica = () =>
-  screen.queryByRole('region', { name: 'Lectura' }) !== null ||
-  screen.queryByRole('region', { name: 'Escritura' }) !== null;
+  ['Presentación de letras', 'Lectura', 'Escritura'].some(
+    (nombre) => screen.queryByRole('region', { name: nombre }) !== null,
+  );
 
 function entrar(requestPort: () => Promise<unknown>, autorizados: readonly unknown[] = []) {
   const espias = simularSerial(requestPort, autorizados);
@@ -79,7 +80,7 @@ describe('RF-34: al entrar', () => {
 
     await conectarDispositivo(usuario);
 
-    expect(screen.getByRole('region', { name: 'Lectura' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Presentación de letras' })).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Escritura' })).toBeTruthy();
     expect(screen.getByRole('status').textContent).toMatch(/^Dispositivo listo\. Escribe la a\./);
   });

@@ -20,6 +20,7 @@ Cada `release/*` mueve lo de "Sin publicar" a su versión.
 
 ### Cambiado
 
+- La pantalla se organiza en zonas (RF-06): "Aprender: lectura" (presentación de letras), "Practicar: escritura" y, solo en desarrollo, "Herramientas de prueba" con la lectura técnica de signos y puntos sueltos. En escritorio, Aprender y Practicar van lado a lado. Los encabezados quedan sin saltos de nivel (las zonas son h2; las secciones, h3; sus subsecciones, h4), y la lectura técnica deja de verse en producción.
 - El dispositivo es obligatorio (ADR-0012, RF-34): Lectura y Escritura solo se muestran con el dispositivo listo, y si se pierde la práctica se pausa y conserva la serie y la letra. Al entrar sin dispositivo se anuncia qué revisar y a quién pedir ayuda, sin abrir el puerto sin un clic.
 - El simulador solo está disponible con `pnpm dev` y en las pruebas (`App` recibe `permitirSimulador`). En producción desaparecen "Volver al simulador" y la caída al simulador cuando falla la conexión.
 - Mensajes nuevos de sin dispositivo, sin Web Serial, desconexión (ya no ofrece "seguir con la celda virtual") y firmware incompatible ("El dispositivo necesita una actualización. Pide ayuda a tu tutor.").

@@ -12,7 +12,7 @@ interface PropsPresentacion {
 export function PresentacionLetras({ habilitada, onPresentar, onSiguiente }: PropsPresentacion) {
   return (
     <section aria-labelledby="t-presentacion" className="panel">
-      <h2 id="t-presentacion">Presentación de letras</h2>
+      <h3 id="t-presentacion">Presentación de letras</h3>
       <p className="nota">
         Se levanta una letra en la celda para que la reconozcas al tacto por su forma.
       </p>
