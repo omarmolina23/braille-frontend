@@ -13,11 +13,16 @@ registro del final. Ese registro es evidencia para el entregable "pruebas intern
    se elige la distribución de sobremesa o de portátil. Abajo se escribe como **NVDA**.
 3. **Visor de voz:** NVDA + `N` → Herramientas → Visor de voz. Déjenlo abierto durante toda la
    sesión: muestra por escrito todo lo que NVDA dice, y de ahí se copia al registro.
-4. **Sonido de cambio de modo:** en Opciones → Modo exploración, activen la indicación de audio de
+4. **Voz en español:** instalen en Windows una voz en español (Configuración → Hora e idioma →
+   Voz, por ejemplo «Español (Colombia)»). En NVDA + `Ctrl` + `V` (Preferencias → Opciones → Voz)
+   elijan el sintetizador «Voces de Windows OneCore» y esa voz, y activen **Cambio automático de
+   idioma**. Sin esto, una voz en inglés lee mal el texto en español: «Escribe la be» suena «Escribe
+   la bi». Si pasa, es la configuración de NVDA, no la app.
+5. **Sonido de cambio de modo:** en Opciones → Modo exploración, activen la indicación de audio de
    los modos foco y exploración. Así se oye cuándo NVDA deja pasar las teclas a la app (caso N-04).
-5. Abran NVDA antes que el navegador y prueben en **Chrome y Edge**.
-6. `pnpm dev` y abrir http://localhost:5173.
-7. Para probar como lo haría una persona ciega, activen la **cortina de pantalla** (Opciones →
+6. Abran NVDA antes que el navegador y prueben en **Chrome y Edge**.
+7. `pnpm dev` y abrir http://localhost:5173.
+8. Para probar como lo haría una persona ciega, activen la **cortina de pantalla** (Opciones →
    Visión), que deja el monitor en negro mientras NVDA sigue funcionando.
 
 ## 2. Comandos de NVDA que se usan
