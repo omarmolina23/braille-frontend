@@ -20,6 +20,8 @@ interface Banco {
   estados: EstadoConexion[];
   /** Lo que la celda muestra ahora. */
   celda(): Mascara;
+  /** Cuántas órdenes de movimiento llegaron al dispositivo (o movieron el simulador). */
+  movimientos(): number;
   /** La persona escribe un acorde con el dispositivo. */
   escribirAcorde(mascara: Mascara): void;
   /** La persona pulsa una tecla de control. */
@@ -48,6 +50,7 @@ const BANCOS: readonly { nombre: string; crear: () => Banco }[] = [
       });
       return armar(dispositivo, {
         celda: () => falso.celda,
+        movimientos: () => falso.recibidos.filter((m) => m.t === 'cell' || m.t === 'clear').length,
         escribirAcorde: (m) => falso.emitir({ t: 'chord', m }),
         pulsarTecla: (k) => falso.emitir({ t: 'key', k }),
       });
@@ -57,8 +60,11 @@ const BANCOS: readonly { nombre: string; crear: () => Banco }[] = [
     nombre: 'simulador',
     crear: () => {
       const simulador = new SimuladorDispositivo({ retardoCeldaMs: RETARDO_MS });
+      let movimientos = 0;
+      simulador.onCelda(() => (movimientos += 1));
       return armar(simulador, {
         celda: () => simulador.celdaActual,
+        movimientos: () => movimientos,
         escribirAcorde: (m) => simulador.pulsarAcorde(m),
         pulsarTecla: (k) => simulador.pulsarTecla(k),
       });
@@ -186,6 +192,32 @@ describe.each(BANCOS)('contrato del dispositivo: $nombre', ({ crear }) => {
 
     expect(acordes).toEqual([]);
     expect(teclas).toEqual([]);
+  });
+
+  it.each([64, -1, 1.5, Number.NaN])(
+    'rechaza al instante la máscara %s sin mover la celda',
+    async (mascara) => {
+      const { dispositivo, celda, movimientos } = crear();
+      await dispositivo.conectar();
+
+      const rechazo = dispositivo.mostrarCelda(mascara);
+
+      await expect(rechazo).rejects.toBeInstanceOf(ErrorProtocolo);
+      await expect(rechazo).rejects.toThrow('La máscara debe ser un número entero entre 0 y 63.');
+      expect(dispositivo.estado).toBe('listo');
+      expect(celda()).toBe(0);
+      expect(movimientos()).toBe(0);
+    },
+  );
+
+  it('acepta los extremos 0 y 63', async () => {
+    const { dispositivo, celda } = crear();
+    await dispositivo.conectar();
+
+    await dispositivo.mostrarCelda(63);
+    expect(celda()).toBe(63);
+    await dispositivo.mostrarCelda(0);
+    expect(celda()).toBe(0);
   });
 
   it('vuelve a conectar la misma instancia después de desconectar', async () => {

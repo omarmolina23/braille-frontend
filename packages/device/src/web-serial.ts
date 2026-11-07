@@ -19,6 +19,7 @@ import {
   ErrorProtocolo,
   ErrorTiempoAgotado,
 } from './errores';
+import { exigirMascaraValida } from './mascara';
 import {
   Emisor,
   SIN_ACORDE,
@@ -199,6 +200,11 @@ export class DispositivoWebSerial implements DispositivoBraille {
   }
 
   mostrarCelda(mascara: Mascara): Promise<void> {
+    try {
+      exigirMascaraValida(mascara);
+    } catch (error) {
+      return Promise.reject(error);
+    }
     return this.enCola(() => this.actuar({ t: 'cell', m: mascara }));
   }
 
