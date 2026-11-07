@@ -12,8 +12,12 @@ import {
   type Usuario,
 } from './ayudas';
 
-/** Tiempo que tarda el firmware falso en confirmar con `ack` (menor que el timeout de la app). */
-const RETARDO_ACK_MS = 300;
+/**
+ * Tiempo que tarda el firmware falso en confirmar con `ack`: lento de verdad, pero menor que el
+ * timeout de 1,5 s de la app. Con poco margen, las pruebas fallaban de forma intermitente cuando
+ * la máquina iba cargada (el clic tardaba más que la mitad del `ack`).
+ */
+const RETARDO_ACK_MS = 1_000;
 /** Lo que no debe oírse antes del `ack`: cualquier invitación a tocar la celda. */
 const INVITA_A_TOCAR = /t[oó]c/i;
 

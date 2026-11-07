@@ -9,6 +9,7 @@ import {
   PUNTOS,
   TABLA,
   describirEvaluacion,
+  describirPresentacion,
   describirPuntos,
   esLetra,
   evaluar,
@@ -37,6 +38,7 @@ import {
   type LectorSeisTeclas,
   type PuertoSerie,
 } from '@braille/device';
+import { PresentacionLetras } from './PresentacionLetras';
 
 /** Series del código generador, en el orden en que se enseñan. */
 const SERIES: readonly { serie: Serie; rango: string }[] = [
@@ -315,6 +317,8 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
   const [estado, setEstado] = useState<EstadoConexion>('desconectado');
   const [serie, setSerie] = useState<Serie>(1);
   const [indice, setIndice] = useState(0);
+  /** Letra de la serie que se presenta en la sección de presentación (RF-06). */
+  const [indicePresentacion, setIndicePresentacion] = useState(0);
   const [anuncio, setAnuncio] = useState('');
   const [celdaVirtual, setCeldaVirtual] = useState<Mascara>(0);
   const [celdaLevantada, setCeldaLevantada] = useState<Mascara | null>(null);
@@ -533,6 +537,7 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
   function cambiarSerie(nueva: Serie) {
     const signos = signosDeSerie(nueva);
     setSerie(nueva);
+    setIndicePresentacion(0);
     setIndice(0);
     anunciar(
       `Serie ${nueva}: de ${nombreConArticulo(signos[0]!)} a ${nombreConArticulo(signos.at(-1)!)}. ` +
@@ -548,7 +553,26 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
     const signo = signoPorId(id)!;
     const serieDeLetra = signo.serie!;
     setSerie(serieDeLetra);
+    setIndicePresentacion(0);
     setIndice(signosDeSerie(serieDeLetra).findIndex((s) => s.id === id));
+  }
+
+  /** RF-06: levanta la letra y solo cuando la celda quedó quieta (ack) invita a tocarla. */
+  async function presentarLetra() {
+    const posicion = indicePresentacion % letras.length;
+    try {
+      await levantar(letras[posicion]!.mascara);
+      anunciar(describirPresentacion(letras[posicion]!, posicion + 1, letras.length));
+    } catch (error) {
+      anunciarFalloDeCelda('La celda no respondió', error);
+    }
+  }
+
+  function siguienteLetra() {
+    const siguiente = (indicePresentacion + 1) % letras.length;
+    setIndicePresentacion(siguiente);
+    const posicion = `Letra ${siguiente + 1} de ${letras.length}.`;
+    anunciar(siguiente === 0 ? `Volviste a la primera letra de la serie. ${posicion}` : posicion);
   }
 
   async function mostrarEnCelda() {
@@ -648,6 +672,12 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
 
       {practicaDisponible && (
         <div className="secciones">
+          <PresentacionLetras
+            habilitada={puedeMoverCelda(estado)}
+            onPresentar={presentarLetra}
+            onSiguiente={siguienteLetra}
+          />
+
           <SeccionLectura
             levantada={celdaLevantada}
             esFisico={esFisico}
