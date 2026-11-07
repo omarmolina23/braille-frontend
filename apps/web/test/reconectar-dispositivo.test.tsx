@@ -38,7 +38,7 @@ describe('RF-02: aviso de desconexión', () => {
 
     const aviso = screen.getByRole('status');
     expect(aviso.textContent).toBe(
-      'Se desconectó el dispositivo. Puedes reconectarlo o seguir con la celda virtual.',
+      'Se desconectó el dispositivo. Revisa el cable y activa «Reconectar». Tu ejercicio sigue donde lo dejaste.',
     );
     expect(screen.getByRole('button', { name: NOMBRE_BOTON_RECONECTAR })).toBeTruthy();
   });

@@ -25,7 +25,7 @@ archivo en el mismo PR. Lo personal va en CLAUDE.local.md (no versionado). -->
 
 - Lo que hay hoy es una **versión de prueba**: una sola pantalla (`apps/web/src/App.tsx`) con
   lectura (levantar un signo en la celda), escritura por acordes de las series a–j, k–t y u–z,
-  visor de la celda y conexión al simulador o al ESP32. No hay rutas, ni cliente de la API, ni
+  visor de la celda y conexión al ESP32 (el simulador solo existe con `pnpm dev` y en las pruebas). No hay rutas, ni cliente de la API, ni
   registro de progreso, ni PWA todavía.
 - Los PR de esta etapa llevan la etiqueta **`prototipo`** (también en `braille-backend`) y sus
   ramas empiezan por `prototipo/`. La interfaz muestra "Versión de prueba" junto al título.
@@ -66,8 +66,12 @@ Los paquetes exportan su `src/index.ts` directamente (sin paso de compilación).
   a futuro, Bluetooth.
 - **Sin red en el ciclo de práctica:** acorde → evaluación → retroalimentación ocurre en el
   navegador. El backend solo recibirá el progreso ya registrado.
-- **Funciona sin dispositivo:** celda virtual y entrada de seis teclas (F D S = puntos 1 2 3;
-  J K L = puntos 4 5 6).
+- **Sin dispositivo no hay práctica (ADR-0012, RF-34):** Lectura y Escritura solo existen con el
+  dispositivo `listo`; sin él se anuncia qué revisar y a quién pedir ayuda. El simulador solo
+  existe con `pnpm dev` y en las pruebas: `App` recibe `permitirSimulador`, por defecto
+  `import.meta.env.DEV`. La celda virtual y la entrada de seis teclas (F D S = puntos 1 2 3;
+  J K L = puntos 4 5 6) son entradas con el dispositivo conectado. En el build de producción el
+  simulador sigue dentro del paquete, pero la interfaz no lo alcanza.
 
 ## Comandos (PowerShell, en la raíz)
 

@@ -7,6 +7,7 @@ Cada `release/*` mueve lo de "Sin publicar" a su versión.
 
 ### Agregado
 
+- Pruebas de la verificación del dispositivo al entrar, de la práctica ligada al dispositivo listo, de los mensajes de sin dispositivo, sin Web Serial, desconexión y firmware incompatible, del foco y de la accesibilidad (`apps/web/test/verificar-dispositivo.test.tsx`) (RF-34).
 - Pruebas de interfaz en `apps/web` (Vitest + jsdom + Testing Library + axe-core) y pruebas de la conexión por USB: acción explícita, anuncios en español y accesibilidad (RF-01).
 - `docs/PRUEBAS-NVDA.md`: requisito de tener una voz en español y el cambio automático de idioma en NVDA, porque una voz en inglés lee «la be» como «la bi».
 - `docs/PRUEBAS-NVDA.md`: resultados de N-03, N-10, N-22 y N-23 con NVDA en Chrome 157 (RF-01).
@@ -16,8 +17,15 @@ Cada `release/*` mueve lo de "Sin publicar" a su versión.
 - Pruebas de la desconexión y la reconexión (`apps/web/test/reconectar-dispositivo.test.tsx` y `packages/device`) y resultados de N-13, N-14 y N-21 con NVDA (RF-02).
 - Pruebas de `packages/device` para navegador sin Web Serial, falta de permiso, reintento y segunda conexión (RF-01).
 
+### Cambiado
+
+- El dispositivo es obligatorio (ADR-0012, RF-34): Lectura y Escritura solo se muestran con el dispositivo listo, y si se pierde la práctica se pausa y conserva la serie y la letra. Al entrar sin dispositivo se anuncia qué revisar y a quién pedir ayuda, sin abrir el puerto sin un clic.
+- El simulador solo está disponible con `pnpm dev` y en las pruebas (`App` recibe `permitirSimulador`). En producción desaparecen "Volver al simulador" y la caída al simulador cuando falla la conexión.
+- Mensajes nuevos de sin dispositivo, sin Web Serial, desconexión (ya no ofrece "seguir con la celda virtual") y firmware incompatible ("El dispositivo necesita una actualización. Pide ayuda a tu tutor.").
+
 ### Corregido
 
+- El aviso de "sin dispositivo" al entrar espera 1,5 s: NVDA descartaba el que llegaba justo al cargar la página y solo se oía al señalarlo con el mouse. Si la persona ya empezó a conectar, el aviso no se repite (RF-34).
 - `mostrarCelda` rechaza al instante una máscara que no sea un entero de 0 a 63 (`ErrorProtocolo`), en el dispositivo real y en el simulador. Antes el firmware respondía `BAD_MESSAGE` sin `id` y la app tardaba dos timeouts en decir "no confirmó a tiempo" (RF-05).
 - El simulador se comporta como el dispositivo real: pasa por `conectando`, rechaza conectar dos veces, pone las órdenes en cola, usa los mismos errores y, si se desconecta durante un movimiento, rechaza la orden con `ErrorConexionCerrada` sin volver a `listo` (RF-03).
 - Al retirar el cable con una orden en curso, el adaptador ya no pasa por el estado `listo` y la orden se rechaza con `ErrorConexionCerrada`; la interfaz no anuncia ese fallo además del aviso de desconexión (RF-02).
