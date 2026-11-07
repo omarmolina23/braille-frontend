@@ -62,7 +62,7 @@ Los paquetes exportan su `src/index.ts` directamente (sin paso de compilación).
   `apps/web → packages/braille-core`. `braille-core` y `protocol` no importan React, el DOM ni nada
   del hardware.
 - **Puertos y adaptadores:** la interfaz solo conoce el puerto `DispositivoBraille`
-  (`packages/device/src/puerto.ts`). Adaptadores: `SimuladorDispositivo` y `DispositivoWebSerial`;
+  (`packages/device/src/puerto.ts`). Adaptadores: `SimuladorDispositivo` (solo desarrollo y pruebas, ADR-0012; `test/contrato-dispositivo.test.ts` lo compara con el real) y `DispositivoWebSerial`;
   a futuro, Bluetooth.
 - **Sin red en el ciclo de práctica:** acorde → evaluación → retroalimentación ocurre en el
   navegador. El backend solo recibirá el progreso ya registrado.
