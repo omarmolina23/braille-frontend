@@ -1,0 +1,45 @@
+name: Título del PR
+
+# El título del PR es el commit que queda en develop (squash merge).
+# pull_request_target no ejecuta código del PR: solo lee el título.
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  conventional-commits:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            test
+            refactor
+            docs
+            chore
+            ci
+            perf
+          scopes: |
+            dispositivo
+            lectura
+            escritura
+            narracion
+            progreso
+            usuarios
+            dominio
+            ui
+            firmware
+            protocolo
+            ci
+            deps
+          requireScope: false
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: 'La descripción del título debe empezar en minúscula (por ejemplo, "feat(lectura): ejercicio de la serie 1 (RF-06)").'
