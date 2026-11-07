@@ -14,6 +14,12 @@ import {
   type MensajeDispositivo,
 } from '@braille/protocol';
 import {
+  ErrorConexionCerrada,
+  ErrorIncompatible,
+  ErrorProtocolo,
+  ErrorTiempoAgotado,
+} from './errores';
+import {
   Emisor,
   SIN_ACORDE,
   type AcordeEnCurso,
@@ -47,19 +53,6 @@ export interface OpcionesWebSerial {
   onLineaIgnorada?: (linea: string, motivo: string) => void;
 }
 
-export class ErrorProtocolo extends Error {
-  override name = 'ErrorProtocolo';
-}
-export class ErrorTiempoAgotado extends ErrorProtocolo {
-  override name = 'ErrorTiempoAgotado';
-}
-export class ErrorIncompatible extends ErrorProtocolo {
-  override name = 'ErrorIncompatible';
-}
-/** Una orden en curso se canceló porque la conexión se cerró (cable retirado, desconexión). */
-export class ErrorConexionCerrada extends ErrorProtocolo {
-  override name = 'ErrorConexionCerrada';
-}
 class ErrorReinicio extends ErrorProtocolo {}
 
 /**

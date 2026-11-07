@@ -1,3 +1,4 @@
+export * from './errores';
 export * from './puerto';
 export * from './simulador';
 export * from './teclado-seis-teclas';

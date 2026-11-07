@@ -1,4 +1,5 @@
 import { TECLAS_CONTROL } from '@braille/protocol';
+import { ErrorConexionCerrada, ErrorProtocolo } from './errores';
 import {
   Emisor,
   type AcordeEnCurso,
@@ -18,10 +19,17 @@ export interface OpcionesSimulador {
 /**
  * Dispositivo simulado. La interfaz lo usa para dibujar la celda virtual y recibir la escritura
  * con el teclado de seis teclas; las pruebas lo usan para no depender del hardware.
+ *
+ * Solo sirve para desarrollo y pruebas (ADR-0012). Se comporta como `DispositivoWebSerial`: mismos
+ * estados, mismos errores y órdenes en cola. `test/contrato-dispositivo.test.ts` lo comprueba
+ * contra el firmware falso.
  */
 export class SimuladorDispositivo implements DispositivoBraille {
   private estadoActual: EstadoConexion = 'desconectado';
   private celda: Mascara = 0;
+  private cola: Promise<unknown> = Promise.resolve();
+  /** Cancela el movimiento en curso, si lo hay (lo usa `desconectar`). */
+  private cancelarMovimiento: (() => void) | null = null;
   private readonly acordes = new Emisor<Mascara>();
   private readonly teclas = new Emisor<TeclaControl>();
   private readonly estados = new Emisor<EstadoConexion>();
@@ -39,22 +47,19 @@ export class SimuladorDispositivo implements DispositivoBraille {
   }
 
   async conectar(): Promise<InfoDispositivo> {
+    if (this.estadoActual !== 'desconectado') throw new ErrorProtocolo('Ya hay una conexión.');
+    this.cambiarEstado('conectando');
     this.cambiarEstado('listo');
     return { protocolo: 1, firmware: 'simulador', teclas: TECLAS_CONTROL };
   }
 
   async desconectar(): Promise<void> {
+    this.cancelarMovimiento?.();
     this.cambiarEstado('desconectado');
   }
 
-  async mostrarCelda(mascara: Mascara): Promise<void> {
-    this.exigirConexion();
-    this.cambiarEstado('moviendo');
-    const retardo = this.opciones.retardoCeldaMs ?? 0;
-    if (retardo > 0) await new Promise((r) => setTimeout(r, retardo));
-    this.celda = mascara;
-    this.celdas.emitir(mascara);
-    this.cambiarEstado('listo');
+  mostrarCelda(mascara: Mascara): Promise<void> {
+    return this.enCola(() => this.mover(mascara));
   }
 
   limpiar(): Promise<void> {
@@ -95,8 +100,41 @@ export class SimuladorDispositivo implements DispositivoBraille {
     if (this.estadoActual !== 'desconectado') this.teclas.emitir(tecla);
   }
 
-  private exigirConexion(): void {
-    if (this.estadoActual === 'desconectado') throw new Error('El simulador no está conectado.');
+  /** Un movimiento a la vez, en el orden en que llegan las órdenes. */
+  private enCola<T>(tarea: () => Promise<T>): Promise<T> {
+    const resultado = this.cola.then(tarea, tarea);
+    this.cola = resultado.catch(() => undefined);
+    return resultado;
+  }
+
+  private async mover(mascara: Mascara): Promise<void> {
+    if (this.estadoActual !== 'listo') throw new ErrorProtocolo('El dispositivo no está listo.');
+    this.cambiarEstado('moviendo');
+    try {
+      await this.esperarServos();
+      this.celda = mascara;
+      this.celdas.emitir(mascara);
+    } finally {
+      // Si se desconectó mientras se movía, el estado ya es 'desconectado' y no se toca. Se lee con
+      // el getter: TypeScript no sabe que el estado cambió durante la espera.
+      if (this.estado === 'moviendo') this.cambiarEstado('listo');
+    }
+  }
+
+  private esperarServos(): Promise<void> {
+    const retardo = this.opciones.retardoCeldaMs ?? 0;
+    if (retardo <= 0) return Promise.resolve();
+    return new Promise((resolver, rechazar) => {
+      const temporizador = setTimeout(() => {
+        this.cancelarMovimiento = null;
+        resolver();
+      }, retardo);
+      this.cancelarMovimiento = () => {
+        clearTimeout(temporizador);
+        this.cancelarMovimiento = null;
+        rechazar(new ErrorConexionCerrada('Conexión cerrada.'));
+      };
+    });
   }
 
   private cambiarEstado(estado: EstadoConexion): void {
