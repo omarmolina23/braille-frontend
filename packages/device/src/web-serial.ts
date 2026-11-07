@@ -83,7 +83,9 @@ function traducirErrorNavegador(
 ): ErrorProtocolo {
   if (error instanceof ErrorProtocolo) return error;
   const mensajes: Partial<Record<string, string>> = MENSAJES_NAVEGADOR[accion];
-  const nombre = error instanceof Error ? error.name : '';
+  // Sin `instanceof Error`: una DOMException de otro contexto (iframe, jsdom) no lo cumple.
+  const nombre =
+    typeof error === 'object' && error !== null && 'name' in error ? String(error.name) : '';
   return new ErrorProtocolo(mensajes[nombre] ?? MENSAJES_NAVEGADOR[accion].otro, { cause: error });
 }
 

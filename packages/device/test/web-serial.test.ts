@@ -5,7 +5,9 @@ import {
   ErrorIncompatible,
   ErrorProtocolo,
   SIN_ACORDE,
+  puertosSerieAutorizados,
   solicitarPuertoSerie,
+  webSerialDisponible,
   type AcordeEnCurso,
   type EstadoConexion,
   type OpcionesWebSerial,
@@ -79,6 +81,106 @@ describe('conexión', () => {
       },
     });
     await expect(solicitarPuertoSerie()).rejects.toThrow('Se cerró la lista sin elegir un puerto.');
+  });
+});
+
+describe('conexión por acción explícita (RF-01)', () => {
+  function simularNavegador(serial: object | undefined) {
+    vi.stubGlobal('navigator', serial === undefined ? {} : { serial });
+  }
+
+  it('sin Web Serial lo informa y no ofrece conectar', async () => {
+    simularNavegador(undefined);
+
+    expect(webSerialDisponible()).toBe(false);
+    await expect(solicitarPuertoSerie()).rejects.toThrow(
+      'Este navegador no permite conectar el dispositivo por USB.',
+    );
+  });
+
+  it('con Web Serial lo detecta', () => {
+    simularNavegador({ requestPort: () => Promise.reject(), getPorts: () => Promise.resolve([]) });
+
+    expect(webSerialDisponible()).toBe(true);
+  });
+
+  it('explica en español que el navegador no dio permiso', async () => {
+    simularNavegador({
+      requestPort: () =>
+        Promise.reject(new DOMException('Must be handling a user gesture.', 'SecurityError')),
+    });
+
+    await expect(solicitarPuertoSerie()).rejects.toThrow(
+      'El navegador no dio permiso para usar los puertos USB.',
+    );
+  });
+
+  it('ante un error desconocido da un mensaje en español y conserva la causa', async () => {
+    const causa = new Error('boom');
+    simularNavegador({ requestPort: () => Promise.reject(causa) });
+
+    const error = await solicitarPuertoSerie().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ErrorProtocolo);
+    expect((error as ErrorProtocolo).message).toBe(
+      'El navegador no pudo mostrar la lista de puertos.',
+    );
+    expect((error as ErrorProtocolo).cause).toBe(causa);
+  });
+
+  it('explica en español que no se pudieron leer los puertos autorizados', async () => {
+    simularNavegador({
+      getPorts: () => Promise.reject(new DOMException('No access.', 'SecurityError')),
+    });
+
+    await expect(puertosSerieAutorizados()).rejects.toThrow(
+      'El navegador no dio permiso para usar los puertos USB.',
+    );
+  });
+
+  it('no abre otro puerto si ya hay una conexión', async () => {
+    const puerto = new FirmwareFalso().crearPuerto();
+    const abrir = vi.spyOn(puerto, 'open');
+    const conectado = new DispositivoWebSerial(puerto, {
+      timeoutAckMs: 80,
+      tiempoMaximoSaludoMs: 400,
+      intervaloSaludoMs: 50,
+      intervaloPingMs: 0,
+    });
+    abiertos.push(conectado);
+    await conectado.conectar();
+
+    await expect(conectado.conectar()).rejects.toThrow('Ya hay una conexión.');
+
+    expect(abrir).toHaveBeenCalledTimes(1);
+    expect(conectado.estado).toBe('listo');
+  });
+
+  it('permite reintentar tras un fallo sin recargar la página', async () => {
+    const falso = new FirmwareFalso();
+    const puerto = falso.crearPuerto();
+    const abrirReal = puerto.open.bind(puerto);
+    let intentos = 0;
+    puerto.open = (opciones) => {
+      intentos += 1;
+      if (intentos === 1) {
+        return Promise.reject(new DOMException('Failed to open serial port.', 'NetworkError'));
+      }
+      return abrirReal(opciones);
+    };
+    const dispositivo = new DispositivoWebSerial(puerto, {
+      timeoutAckMs: 80,
+      tiempoMaximoSaludoMs: 400,
+      intervaloSaludoMs: 50,
+      intervaloPingMs: 0,
+    });
+    abiertos.push(dispositivo);
+
+    await expect(dispositivo.conectar()).rejects.toThrow(/^El puerto está ocupado/);
+    expect(dispositivo.estado).toBe('error');
+
+    await dispositivo.conectar();
+    expect(dispositivo.estado).toBe('listo');
   });
 });
 
