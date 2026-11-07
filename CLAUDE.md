@@ -18,7 +18,7 @@ archivo en el mismo PR. Lo personal va en CLAUDE.local.md (no versionado). -->
 - **Validación pedagógica:** los signos y el contenido los validan los tiflólogos. No se decide
   nada sobre signos o pedagogía solo desde el código; ante la duda, preguntar.
 - Metas clave: WCAG 2.2 AA (RNF-01), sonido de acierto o error ≤ 100 ms tras soltar el acorde
-  (RNF-02), celda posicionada ≤ 1 s (RNF-03), desconexión detectada ≤ 2 s (RNF-04), cobertura ≥ 80 %
+  (RNF-02), celda posicionada ≤ 1 s (RNF-03), desconexión detectada (RNF-09: cable retirado al instante; dispositivo que calla, ~5,5 s por el latido), cobertura ≥ 80 %
   en `braille-core` (RNF-10).
 
 ## Etapa actual: versión de prueba

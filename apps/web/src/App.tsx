@@ -23,6 +23,7 @@ import {
 } from '@braille/core';
 import {
   DispositivoWebSerial,
+  ErrorConexionCerrada,
   SIN_ACORDE,
   SimuladorDispositivo,
   crearLectorSeisTeclas,
@@ -298,6 +299,10 @@ export function App() {
   const [ultimoAcorde, setUltimoAcorde] = useState<AcordeEscrito | null>(null);
   /** Entrada de pantalla que originó el próximo acorde; si no hay, vino del dispositivo. */
   const origenRef = useRef<OrigenAcorde | null>(null);
+  /** El área de escritura: allí se retoma el ejercicio tras reconectar. */
+  const areaEscrituraRef = useRef<HTMLDivElement>(null);
+  /** true mientras se reconecta tras una desconexión (RF-02); lo apaga el resultado del intento. */
+  const reconectandoRef = useRef(false);
   const letras = useMemo(() => signosDeSerie(serie), [serie]);
   const objetivo = letras[indice % letras.length]!;
   const esFisico = dispositivo !== simulador;
@@ -314,6 +319,18 @@ export function App() {
     setAnuncio(''); // vaciar primero permite repetir un mensaje idéntico
     window.setTimeout(() => setAnuncio(texto), 60);
   }, []);
+
+  /**
+   * Anuncia que una orden a la celda falló. Si falló porque se cerró la conexión, no dice nada:
+   * el aviso de desconexión ya lo explica y dos mensajes seguidos se pisan.
+   */
+  const anunciarFalloDeCelda = useCallback(
+    (texto: string, error: unknown) => {
+      if (error instanceof ErrorConexionCerrada) return;
+      anunciar(`${texto}: ${(error as Error).message}`);
+    },
+    [anunciar],
+  );
 
   /** Mueve la celda de lectura; resuelve cuando quedó quieta y se puede tocar. */
   const levantar = useCallback(
@@ -343,12 +360,12 @@ export function App() {
       // no espera a los servos (RNF-02); sin dispositivo listo no se intenta, para que un error
       // no tape el anuncio de la evaluación.
       if (puedeMoverCelda(dispositivo.estado)) {
-        levantar(mascara).catch((error: Error) =>
-          anunciar(`No se pudo levantar en la celda lo que escribiste: ${error.message}`),
+        levantar(mascara).catch((error: unknown) =>
+          anunciarFalloDeCelda('No se pudo levantar en la celda lo que escribiste', error),
         );
       }
     },
-    [anunciar, dispositivo, levantar],
+    [anunciar, anunciarFalloDeCelda, dispositivo, levantar],
   );
 
   const repetirInstruccion = useCallback(() => {
@@ -375,15 +392,20 @@ export function App() {
     if (dispositivo.estado === 'desconectado') {
       dispositivo
         .conectar()
-        .then((info) =>
+        .then((info) => {
           anunciar(
             `${info.firmware === 'simulador' ? 'Simulador' : 'Dispositivo'} listo. ` +
               `Escribe ${nombreConArticulo(objetivoRef.current)}.`,
-          ),
-        )
+          );
+          // El botón "Reconectar" desaparece: el foco se lleva a donde sigue el ejercicio.
+          if (reconectandoRef.current) areaEscrituraRef.current?.focus();
+          reconectandoRef.current = false;
+        })
         .catch((error: Error) => {
           anunciar(`No se pudo conectar: ${error.message}`);
-          setDispositivo(simulador);
+          // Si falla una reconexión, el dispositivo queda en error con "Reconectar" a mano.
+          if (!reconectandoRef.current) setDispositivo(simulador);
+          reconectandoRef.current = false;
         });
     }
     return () => cancelar.forEach((c) => c());
@@ -423,6 +445,7 @@ export function App() {
     try {
       cambiarDispositivo(new DispositivoWebSerial(await obtenerPuerto()));
     } catch (error) {
+      reconectandoRef.current = false;
       anunciar(`No se abrió ningún puerto: ${(error as Error).message}`);
     }
   }
@@ -433,6 +456,7 @@ export function App() {
 
   /** Tras una desconexión: si hay un solo puerto autorizado, se usa sin abrir el selector. */
   async function reconectar() {
+    reconectandoRef.current = true;
     await usarPuerto(async () => {
       const autorizados = await puertosSerieAutorizados();
       return autorizados.length === 1 ? autorizados[0]! : solicitarPuertoSerie();
@@ -470,7 +494,7 @@ export function App() {
       await levantar(objetivo.mascara);
       anunciar(`${describirSigno(objetivo)} Tócala y luego escríbela.`);
     } catch (error) {
-      anunciar(`La celda no respondió: ${(error as Error).message}`);
+      anunciarFalloDeCelda('La celda no respondió', error);
     }
   }
 
@@ -479,7 +503,7 @@ export function App() {
       await levantar(signo.mascara);
       anunciar(`${describirSigno(signo)} Ya puedes tocar la celda.`);
     } catch (error) {
-      anunciar(`La celda no respondió: ${(error as Error).message}`);
+      anunciarFalloDeCelda('La celda no respondió', error);
     }
   }
 
@@ -488,7 +512,7 @@ export function App() {
       await levantar(bit(punto));
       anunciar(`${mayuscula(describirPuntos(bit(punto)))}. Ya puedes tocar la celda.`);
     } catch (error) {
-      anunciar(`La celda no respondió: ${(error as Error).message}`);
+      anunciarFalloDeCelda('La celda no respondió', error);
     }
   }
 
@@ -498,7 +522,7 @@ export function App() {
       setCeldaLevantada(0);
       anunciar('Todos los puntos están abajo.');
     } catch (error) {
-      anunciar(`La celda no respondió: ${(error as Error).message}`);
+      anunciarFalloDeCelda('La celda no respondió', error);
     }
   }
 
@@ -616,6 +640,7 @@ export function App() {
             */}
             {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
             <div
+              ref={areaEscrituraRef}
               className="area-escritura"
               role="application"
               tabIndex={0}

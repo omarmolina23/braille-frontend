@@ -3,25 +3,8 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import axe from 'axe-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { FirmwareFalso } from '@braille/device/pruebas';
 import { App } from '../src/App';
-
-const NOMBRE_BOTON = 'Conectar dispositivo por USB';
-
-/** Instala un `navigator.serial` falso y devuelve sus espías. */
-function simularSerial(requestPort: () => Promise<unknown>) {
-  const solicitar = vi.fn(requestPort);
-  const autorizados = vi.fn(() => Promise.resolve([]));
-  vi.stubGlobal('navigator', { serial: { requestPort: solicitar, getPorts: autorizados } });
-  return { solicitar, autorizados };
-}
-
-/** Puerto de un ESP32 falso, con su espía de `open`. */
-function puertoFalso(opciones: ConstructorParameters<typeof FirmwareFalso>[0] = {}) {
-  const puerto = new FirmwareFalso(opciones).crearPuerto();
-  const abrir = vi.spyOn(puerto, 'open');
-  return { puerto, abrir };
-}
+import { NOMBRE_BOTON_CONECTAR as NOMBRE_BOTON, puertoFalso, simularSerial } from './ayudas';
 
 afterEach(() => {
   cleanup();
