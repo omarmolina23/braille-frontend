@@ -24,6 +24,7 @@ import {
 import {
   DispositivoWebSerial,
   ErrorConexionCerrada,
+  ErrorIncompatible,
   SIN_ACORDE,
   SimuladorDispositivo,
   crearLectorSeisTeclas,
@@ -43,6 +44,15 @@ const SERIES: readonly { serie: Serie; rango: string }[] = [
   { serie: 2, rango: 'k–t' },
   { serie: 3, rango: 'u–z' },
 ];
+
+/** Lo que se anuncia al verificar el dispositivo (RF-34). Están escritos para ser escuchados. */
+const MENSAJE_SIN_DISPOSITIVO =
+  'No hay un dispositivo conectado. Conecta el cable USB y activa «Conectar dispositivo por USB». Si no funciona, pide ayuda a tu tutor.';
+const MENSAJE_SIN_WEB_SERIAL =
+  'Este navegador no permite usar el dispositivo. Abre el sitio en Chrome o Edge de escritorio, o pide ayuda a tu tutor.';
+const MENSAJE_DESCONEXION =
+  'Se desconectó el dispositivo. Revisa el cable y activa «Reconectar». Tu ejercicio sigue donde lo dejaste.';
+const MENSAJE_ACTUALIZACION = 'El dispositivo necesita una actualización. Pide ayuda a tu tutor.';
 
 const TEXTO_ESTADO: Record<EstadoConexion, string> = {
   desconectado: 'desconectado',
@@ -285,7 +295,15 @@ function SeccionLectura({
   );
 }
 
-export function App() {
+interface PropsApp {
+  /**
+   * El simulador solo sirve para desarrollo y pruebas (ADR-0012): el estudiante siempre usa el
+   * dispositivo. Por defecto solo se permite con `pnpm dev` y en las pruebas.
+   */
+  permitirSimulador?: boolean;
+}
+
+export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
   const simulador = useMemo(() => new SimuladorDispositivo(), []);
   const [dispositivo, setDispositivo] = useState<DispositivoBraille>(simulador);
   const [estado, setEstado] = useState<EstadoConexion>('desconectado');
@@ -297,15 +315,23 @@ export function App() {
   const [teclado, setTeclado] = useState<AcordeEnCurso>(SIN_ACORDE);
   const [pulsadores, setPulsadores] = useState<AcordeEnCurso>(SIN_ACORDE);
   const [ultimoAcorde, setUltimoAcorde] = useState<AcordeEscrito | null>(null);
+  /** La práctica (Lectura y Escritura) solo existe con el dispositivo listo (RF-34). */
+  const [practicaDisponible, setPracticaDisponible] = useState(false);
   /** Entrada de pantalla que originó el próximo acorde; si no hay, vino del dispositivo. */
   const origenRef = useRef<OrigenAcorde | null>(null);
   /** El área de escritura: allí se retoma el ejercicio tras reconectar. */
   const areaEscrituraRef = useRef<HTMLDivElement>(null);
   /** true mientras se reconecta tras una desconexión (RF-02); lo apaga el resultado del intento. */
   const reconectandoRef = useRef(false);
+  /** Al volver la práctica tras reconectar, el foco va al área de escritura. */
+  const enfocarAreaRef = useRef(false);
+  const reconectarRef = useRef<HTMLButtonElement>(null);
+  const practicaAnteriorRef = useRef(false);
+  const verificadoAlEntrarRef = useRef(false);
   const letras = useMemo(() => signosDeSerie(serie), [serie]);
   const objetivo = letras[indice % letras.length]!;
   const esFisico = dispositivo !== simulador;
+  const usandoSimulador = !esFisico && permitirSimulador;
 
   const objetivoRef = useRef(objetivo);
   const letrasRef = useRef(letras);
@@ -372,16 +398,22 @@ export function App() {
     anunciar(`Escribe ${nombreConArticulo(objetivoRef.current)}.`);
   }, [anunciar]);
 
+  // Al entrar sin simulador se verifica el dispositivo y se anuncia el resultado. No se abre el
+  // puerto sin un clic (RF-01): conectar exige un gesto de la persona.
+  useEffect(() => {
+    if (permitirSimulador || verificadoAlEntrarRef.current) return;
+    verificadoAlEntrarRef.current = true;
+    anunciar(webSerialDisponible() ? MENSAJE_SIN_DISPOSITIVO : MENSAJE_SIN_WEB_SERIAL);
+  }, [permitirSimulador, anunciar]);
+
   // Suscripción a los eventos del dispositivo activo y conexión inicial.
   useEffect(() => {
     const cancelar = [
       dispositivo.onEstado((nuevo) => {
         setEstado(nuevo);
-        if (nuevo === 'desconectado' && dispositivo !== simulador) {
-          anunciar(
-            'Se desconectó el dispositivo. Puedes reconectarlo o seguir con la celda virtual.',
-          );
-        }
+        if (nuevo === 'listo') setPracticaDisponible(true);
+        else if (nuevo === 'desconectado' || nuevo === 'error') setPracticaDisponible(false);
+        if (nuevo === 'desconectado' && dispositivo !== simulador) anunciar(MENSAJE_DESCONEXION);
       }),
       dispositivo.onAcorde(manejarAcorde),
       dispositivo.onAcordeEnCurso(setPulsadores),
@@ -389,7 +421,7 @@ export function App() {
         if (tecla === 'repeat') repetirInstruccion();
       }),
     ];
-    if (dispositivo.estado === 'desconectado') {
+    if (dispositivo.estado === 'desconectado' && (dispositivo !== simulador || permitirSimulador)) {
       dispositivo
         .conectar()
         .then((info) => {
@@ -397,19 +429,35 @@ export function App() {
             `${info.firmware === 'simulador' ? 'Simulador' : 'Dispositivo'} listo. ` +
               `Escribe ${nombreConArticulo(objetivoRef.current)}.`,
           );
-          // El botón "Reconectar" desaparece: el foco se lleva a donde sigue el ejercicio.
-          if (reconectandoRef.current) areaEscrituraRef.current?.focus();
           reconectandoRef.current = false;
         })
         .catch((error: Error) => {
-          anunciar(`No se pudo conectar: ${error.message}`);
-          // Si falla una reconexión, el dispositivo queda en error con "Reconectar" a mano.
-          if (!reconectandoRef.current) setDispositivo(simulador);
+          anunciar(
+            error instanceof ErrorIncompatible
+              ? MENSAJE_ACTUALIZACION
+              : `No se pudo conectar: ${error.message}`,
+          );
+          // Si falla, el dispositivo queda en error con "Reconectar" a mano. Solo en desarrollo, y
+          // en la primera conexión, se vuelve al simulador.
+          if (!reconectandoRef.current && permitirSimulador) setDispositivo(simulador);
           reconectandoRef.current = false;
+          enfocarAreaRef.current = false;
         });
     }
     return () => cancelar.forEach((c) => c());
-  }, [dispositivo, simulador, manejarAcorde, repetirInstruccion, anunciar]);
+  }, [dispositivo, simulador, permitirSimulador, manejarAcorde, repetirInstruccion, anunciar]);
+
+  // El foco no se pierde cuando la práctica aparece o desaparece: al perder el dispositivo va a
+  // "Reconectar"; al volver tras reconectar, al área de escritura (RF-02, RF-34).
+  useEffect(() => {
+    const habiaPractica = practicaAnteriorRef.current;
+    practicaAnteriorRef.current = practicaDisponible;
+    if (habiaPractica && !practicaDisponible) reconectarRef.current?.focus();
+    if (practicaDisponible && enfocarAreaRef.current) {
+      areaEscrituraRef.current?.focus();
+      enfocarAreaRef.current = false;
+    }
+  }, [practicaDisponible, estado]);
 
   // La escritura de pantalla pasa por el mismo camino que la del dispositivo.
   const escribir = useCallback(
@@ -437,6 +485,7 @@ export function App() {
   /** Lo que mostraba el dispositivo anterior ya no aplica al nuevo. */
   function cambiarDispositivo(nuevo: DispositivoBraille) {
     setDispositivo(nuevo);
+    setPracticaDisponible(false);
     setCeldaLevantada(null);
     setPulsadores(SIN_ACORDE);
   }
@@ -446,6 +495,7 @@ export function App() {
       cambiarDispositivo(new DispositivoWebSerial(await obtenerPuerto()));
     } catch (error) {
       reconectandoRef.current = false;
+      enfocarAreaRef.current = false;
       anunciar(`No se abrió ningún puerto: ${(error as Error).message}`);
     }
   }
@@ -457,6 +507,7 @@ export function App() {
   /** Tras una desconexión: si hay un solo puerto autorizado, se usa sin abrir el selector. */
   async function reconectar() {
     reconectandoRef.current = true;
+    enfocarAreaRef.current = true;
     await usarPuerto(async () => {
       const autorizados = await puertosSerieAutorizados();
       return autorizados.length === 1 ? autorizados[0]! : solicitarPuertoSerie();
@@ -555,146 +606,149 @@ export function App() {
       <section aria-labelledby="t-dispositivo" className="barra-dispositivo">
         <h2 id="t-dispositivo">Dispositivo</h2>
         <p>
-          Usando {esFisico ? 'el dispositivo por USB' : 'el simulador'}:{' '}
+          {usandoSimulador ? 'Usando el simulador' : 'Dispositivo por USB'}:{' '}
           <span className="estado-conexion" data-estado={estado}>
             {TEXTO_ESTADO[estado]}
           </span>
           .
         </p>
+        {usandoSimulador && <p className="nota">Modo de desarrollo: simulador</p>}
         {esFisico ? (
           <div className="acciones">
             {(estado === 'desconectado' || estado === 'error') && (
-              <button type="button" className="principal" onClick={reconectar}>
+              <button type="button" className="principal" ref={reconectarRef} onClick={reconectar}>
                 Reconectar
               </button>
             )}
-            <button type="button" onClick={volverAlSimulador}>
-              Volver al simulador
-            </button>
+            {permitirSimulador && (
+              <button type="button" onClick={volverAlSimulador}>
+                Volver al simulador
+              </button>
+            )}
           </div>
         ) : webSerialDisponible() ? (
           <button type="button" onClick={conectarUsb}>
             Conectar dispositivo por USB
           </button>
         ) : (
-          <p>
-            Este navegador no permite conectar el dispositivo. Usa Chrome o Edge de escritorio;
-            mientras tanto, practica con la celda virtual.
-          </p>
+          <p>Este navegador no permite conectar el dispositivo por USB.</p>
         )}
       </section>
 
-      <div className="secciones">
-        <SeccionLectura
-          levantada={celdaLevantada}
-          esFisico={esFisico}
-          habilitada={puedeMoverCelda(estado)}
-          onLevantar={levantarSigno}
-          onLevantarPunto={levantarPunto}
-          onBajar={bajarCelda}
-        />
+      {practicaDisponible && (
+        <div className="secciones">
+          <SeccionLectura
+            levantada={celdaLevantada}
+            esFisico={esFisico}
+            habilitada={puedeMoverCelda(estado)}
+            onLevantar={levantarSigno}
+            onLevantarPunto={levantarPunto}
+            onBajar={bajarCelda}
+          />
 
-        <section aria-labelledby="t-escritura" className="panel">
-          <h2 id="t-escritura">Escritura</h2>
+          <section aria-labelledby="t-escritura" className="panel">
+            <h2 id="t-escritura">Escritura</h2>
 
-          <section aria-labelledby="t-ejercicio">
-            <h3 id="t-ejercicio">Ejercicio</h3>
-            <fieldset className="selector-serie">
-              <legend>Serie</legend>
-              {SERIES.map(({ serie: s, rango }) => (
-                <label key={s}>
-                  <input
-                    type="radio"
-                    name="serie"
-                    checked={serie === s}
-                    onChange={() => cambiarSerie(s)}
-                  />
-                  Serie {s} <span className="rango">{rango}</span>
+            <section aria-labelledby="t-ejercicio">
+              <h3 id="t-ejercicio">Ejercicio</h3>
+              <fieldset className="selector-serie">
+                <legend>Serie</legend>
+                {SERIES.map(({ serie: s, rango }) => (
+                  <label key={s}>
+                    <input
+                      type="radio"
+                      name="serie"
+                      checked={serie === s}
+                      onChange={() => cambiarSerie(s)}
+                    />
+                    Serie {s} <span className="rango">{rango}</span>
+                  </label>
+                ))}
+              </fieldset>
+              <div className="formulario">
+                <label className="campo">
+                  Letra que se dicta
+                  <select value={objetivo.id} onChange={(e) => dictarLetra(e.target.value)}>
+                    <OpcionesDeSignos grupos={GRUPOS_DE_SERIES} />
+                  </select>
                 </label>
-              ))}
-            </fieldset>
-            <div className="formulario">
-              <label className="campo">
-                Letra que se dicta
-                <select value={objetivo.id} onChange={(e) => dictarLetra(e.target.value)}>
-                  <OpcionesDeSignos grupos={GRUPOS_DE_SERIES} />
-                </select>
-              </label>
-            </div>
-            <p className="consigna">
-              Escribe <strong>{nombreConArticulo(objetivo)}</strong>.
-            </p>
-            <div className="acciones">
-              <button type="button" onClick={repetirInstruccion}>
-                Repetir instrucción
-              </button>
-              <button type="button" onClick={mostrarEnCelda} disabled={!puedeMoverCelda(estado)}>
-                Mostrar en la celda
-              </button>
-            </div>
+              </div>
+              <p className="consigna">
+                Escribe <strong>{nombreConArticulo(objetivo)}</strong>.
+              </p>
+              <div className="acciones">
+                <button type="button" onClick={repetirInstruccion}>
+                  Repetir instrucción
+                </button>
+                <button type="button" onClick={mostrarEnCelda} disabled={!puedeMoverCelda(estado)}>
+                  Mostrar en la celda
+                </button>
+              </div>
 
-            {/*
+              {/*
               role="application" hace que NVDA y JAWS pasen a modo foco y dejen llegar F D S J K L
               (en modo exploración esas letras son atajos de navegación). jsx-a11y lo trata como rol
               no interactivo; la excepción es deliberada y debe validarse con NVDA y JAWS reales.
             */}
-            {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
-            <div
-              ref={areaEscrituraRef}
-              className="area-escritura"
-              role="application"
-              tabIndex={0}
-              aria-label="Área de escritura. Usa F, D y S para los puntos 1, 2 y 3; J, K y L para los puntos 4, 5 y 6. Suelta todas las teclas para confirmar. Espacio repite la instrucción."
-              onKeyDown={(e) => {
-                if (lector().teclaAbajo(e.code, e.repeat)) e.preventDefault();
-                else if (e.code === 'Space') {
-                  e.preventDefault();
-                  repetirInstruccion();
-                }
-              }}
-              onKeyUp={(e) => {
-                if (lector().teclaArriba(e.code)) e.preventDefault();
-              }}
-              onBlur={() => lector().reiniciar()}
-            >
-              Área de escritura con teclado: F D S · J K L
-            </div>
-            {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
-          </section>
-
-          <div className="rejilla-escritura">
-            <VisorCelda
-              teclado={teclado}
-              pulsadores={pulsadores}
-              celdaVirtual={celdaVirtual}
-              ultimo={ultimoAcorde}
-            />
-
-            <section aria-labelledby="t-celda" className="bloque">
-              <h3 id="t-celda">Celda virtual</h3>
-              <div className="celda celda-virtual" role="group" aria-labelledby="t-celda">
-                {PUNTOS.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    className="punto"
-                    aria-pressed={(celdaVirtual & bit(p)) !== 0}
-                    onClick={() => setCeldaVirtual((c) => c ^ bit(p))}
-                  >
-                    {p}
-                  </button>
-                ))}
+              {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
+              <div
+                ref={areaEscrituraRef}
+                className="area-escritura"
+                role="application"
+                tabIndex={0}
+                aria-label="Área de escritura. Usa F, D y S para los puntos 1, 2 y 3; J, K y L para los puntos 4, 5 y 6. Suelta todas las teclas para confirmar. Espacio repite la instrucción."
+                onKeyDown={(e) => {
+                  if (lector().teclaAbajo(e.code, e.repeat)) e.preventDefault();
+                  else if (e.code === 'Space') {
+                    e.preventDefault();
+                    repetirInstruccion();
+                  }
+                }}
+                onKeyUp={(e) => {
+                  if (lector().teclaArriba(e.code)) e.preventDefault();
+                }}
+                onBlur={() => lector().reiniciar()}
+              >
+                Área de escritura con teclado: F D S · J K L
               </div>
-              <p className="estado-celda">
-                Marcados: {celdaVirtual === 0 ? 'ninguno' : mascaraAPuntos(celdaVirtual).join(', ')}
-              </p>
-              <button type="button" onClick={enviarCeldaVirtual}>
-                Enviar celda
-              </button>
+              {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
             </section>
-          </div>
-        </section>
-      </div>
+
+            <div className="rejilla-escritura">
+              <VisorCelda
+                teclado={teclado}
+                pulsadores={pulsadores}
+                celdaVirtual={celdaVirtual}
+                ultimo={ultimoAcorde}
+              />
+
+              <section aria-labelledby="t-celda" className="bloque">
+                <h3 id="t-celda">Celda virtual</h3>
+                <div className="celda celda-virtual" role="group" aria-labelledby="t-celda">
+                  {PUNTOS.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className="punto"
+                      aria-pressed={(celdaVirtual & bit(p)) !== 0}
+                      onClick={() => setCeldaVirtual((c) => c ^ bit(p))}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                <p className="estado-celda">
+                  Marcados:{' '}
+                  {celdaVirtual === 0 ? 'ninguno' : mascaraAPuntos(celdaVirtual).join(', ')}
+                </p>
+                <button type="button" onClick={enviarCeldaVirtual}>
+                  Enviar celda
+                </button>
+              </section>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
