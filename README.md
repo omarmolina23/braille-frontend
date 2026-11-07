@@ -110,6 +110,6 @@ Para validar un signo:
 - [ ] Ejecutar `docs/PRUEBAS-NVDA.md` con NVDA y registrar los resultados.
 - [ ] Antes de las pruebas con usuarios, repetir los casos clave con JAWS (sección 5 de la guía).
 - [ ] Completar y validar la tabla de signos con los tiflólogos.
-- [ ] Pruebas de interfaz con Testing Library y Playwright + axe en CI.
+- [ ] Ampliar las pruebas de interfaz (hoy solo la conexión, RF-01) y sumar Playwright en CI.
 - [ ] Interfaz final con React Aria y la identidad visual definida en la ideación.
 - [ ] Cliente del backend generado desde su contrato OpenAPI y sincronización sin conexión.
