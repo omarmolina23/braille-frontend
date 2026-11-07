@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DispositivoWebSerial,
+  ErrorConexionCerrada,
   ErrorIncompatible,
   ErrorProtocolo,
   SIN_ACORDE,
@@ -305,6 +306,36 @@ describe('fallas del enlace', () => {
     falso.desconectarCable();
 
     await vi.waitFor(() => expect(dispositivo.estado).toBe('desconectado'));
+  });
+
+  it('rechaza la orden en curso si se retira el cable y no vuelve a quedar listo', async () => {
+    const { falso, dispositivo, estados } = montar(
+      { responderAck: false },
+      { timeoutAckMs: 1_000 },
+    );
+    await dispositivo.conectar();
+    const desde = estados.length;
+
+    const rechazo = expect(dispositivo.mostrarCelda(9)).rejects.toThrow(ErrorConexionCerrada);
+    await vi.waitFor(() => expect(falso.recibidos.some((m) => m.t === 'cell')).toBe(true));
+    falso.desconectarCable();
+
+    await rechazo;
+    await vi.waitFor(() => expect(dispositivo.estado).toBe('desconectado'));
+    expect(estados.slice(desde)).toEqual(['moviendo', 'desconectado']);
+  });
+
+  it('vuelve a conectar la misma instancia después de retirar el cable', async () => {
+    const { falso, dispositivo } = montar();
+    await dispositivo.conectar();
+    falso.desconectarCable();
+    await vi.waitFor(() => expect(dispositivo.estado).toBe('desconectado'));
+
+    await dispositivo.conectar();
+
+    expect(dispositivo.estado).toBe('listo');
+    await dispositivo.mostrarCelda(1);
+    expect(falso.celda).toBe(1);
   });
 
   it('el latido detecta un dispositivo que dejó de responder', async () => {
