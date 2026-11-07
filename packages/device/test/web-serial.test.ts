@@ -207,6 +207,37 @@ describe('lectura: mostrar una celda', () => {
     expect(dispositivo.estado).toBe('listo');
   });
 
+  it('no resuelve antes del ack: la celda se da por quieta solo cuando el firmware lo confirma', async () => {
+    const { falso, dispositivo } = montar({ retardoAckMs: 100 }, { timeoutAckMs: 500 });
+    await dispositivo.conectar();
+    let resuelta = false;
+
+    const orden = dispositivo.mostrarCelda(9).then(() => {
+      resuelta = true;
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(resuelta).toBe(false);
+    expect(dispositivo.estado).toBe('moviendo');
+
+    await orden;
+    expect(resuelta).toBe(true);
+    expect(falso.celda).toBe(9);
+  });
+
+  it('un ack tardío del primer intento no da por buena la orden reintentada', async () => {
+    // El ack llega a los 120 ms, después del timeout (80 ms): para entonces el reintento ya salió
+    // y el firmware, que sigue moviendo, le responde BUSY. El ack viejo se ignora.
+    const { dispositivo } = montar({ retardoAckMs: 120 }, { timeoutAckMs: 80 });
+    await dispositivo.conectar();
+
+    await expect(dispositivo.mostrarCelda(9)).rejects.toThrow(
+      'El dispositivo todavía estaba moviendo la celda.',
+    );
+
+    await new Promise((r) => setTimeout(r, 120)); // llega el ack viejo
+    expect(dispositivo.estado).toBe('listo');
+  });
+
   it('anuncia en español el código de error del firmware', async () => {
     const { falso, dispositivo } = montar({ responderAck: false });
     await dispositivo.conectar();

@@ -4,32 +4,25 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
 import {
-  NOMBRE_BOTON_CONECTAR,
+  ESPERA,
   NOMBRE_BOTON_RECONECTAR,
+  conectarDispositivo,
   puertoFalso,
   registrarAnuncios,
   simularSerial,
+  type Usuario,
 } from './ayudas';
 
 const AVISO_DESCONEXION = /^Se desconectó el dispositivo\./;
-const ESPERA = { timeout: 3_000 };
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
 
-type Usuario = ReturnType<typeof userEvent.setup>;
-
-/** Conecta el dispositivo con un clic y espera a que quede listo. */
-async function conectar(usuario: Usuario) {
-  await usuario.click(screen.getByRole('button', { name: NOMBRE_BOTON_CONECTAR }));
-  await screen.findByText(/^Dispositivo listo\./, {}, ESPERA);
-}
-
 /** Conecta y retira el cable; espera el aviso. */
 async function conectarYDesconectar(usuario: Usuario, retirarCable: () => void) {
-  await conectar(usuario);
+  await conectarDispositivo(usuario);
   retirarCable();
   await screen.findByText(AVISO_DESCONEXION, {}, ESPERA);
 }
@@ -62,7 +55,7 @@ describe('RF-02: aviso de desconexión', () => {
     };
     simularSerial(() => Promise.resolve(puerto));
     render(<App />);
-    await conectar(usuario);
+    await conectarDispositivo(usuario);
     const anuncios = registrarAnuncios(screen.getByRole('status'));
 
     await usuario.click(screen.getByRole('button', { name: 'Levantar en la celda' }));
@@ -80,7 +73,7 @@ describe('RF-02: aviso de desconexión', () => {
     const { falso, puerto } = puertoFalso();
     simularSerial(() => Promise.resolve(puerto));
     render(<App />);
-    await conectar(usuario);
+    await conectarDispositivo(usuario);
     falso.presionarPunto(1);
     await screen.findByText(/^Escribiendo con el dispositivo/);
 
@@ -97,7 +90,7 @@ describe('RF-02: reconectar', () => {
     const { falso, puerto } = puertoFalso();
     simularSerial(() => Promise.resolve(puerto), [puerto]);
     render(<App />);
-    await conectar(usuario);
+    await conectarDispositivo(usuario);
     await usuario.selectOptions(screen.getByLabelText('Letra que se dicta'), 'm');
     falso.desconectarCable();
     await screen.findByText(AVISO_DESCONEXION, {}, ESPERA);
