@@ -42,4 +42,4 @@ jobs:
             deps
           requireScope: false
           subjectPattern: ^(?![A-Z]).+$
-          subjectPatternError: La descripción del título debe empezar en minúscula (por ejemplo, "feat(lectura): ejercicio de la serie 1 (RF-06)").
+          subjectPatternError: 'La descripción del título debe empezar en minúscula (por ejemplo, "feat(lectura): ejercicio de la serie 1 (RF-06)").'

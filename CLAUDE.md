@@ -71,17 +71,17 @@ Los paquetes exportan su `src/index.ts` directamente (sin paso de compilación).
 
 ## Comandos (PowerShell, en la raíz)
 
-| Comando                                 | Qué hace                                            |
-| --------------------------------------- | --------------------------------------------------- |
-| `pnpm install`                          | Instala el monorepo (usar pnpm, nunca npm)          |
-| `pnpm dev`                              | Web en http://localhost:5173                        |
-| `pnpm build`                            | Build de producción de la web (turbo)               |
-| `pnpm --filter @braille/web preview`    | Previsualiza el build                               |
-| `pnpm test`                             | Pruebas de los paquetes (la web aún no tiene)       |
-| `pnpm --filter @braille/core test`      | Un solo paquete (con cobertura en braille-core)     |
-| `pnpm lint` / `pnpm typecheck`          | ESLint / TypeScript en cada paquete (turbo)         |
-| `pnpm format` / `pnpm format:check`     | Prettier                                            |
-| `pio run` (en `firmware/`)              | Compila el firmware (requiere PlatformIO Core)      |
+| Comando                              | Qué hace                                        |
+| ------------------------------------ | ----------------------------------------------- |
+| `pnpm install`                       | Instala el monorepo (usar pnpm, nunca npm)      |
+| `pnpm dev`                           | Web en http://localhost:5173                    |
+| `pnpm build`                         | Build de producción de la web (turbo)           |
+| `pnpm --filter @braille/web preview` | Previsualiza el build                           |
+| `pnpm test`                          | Pruebas de los paquetes (la web aún no tiene)   |
+| `pnpm --filter @braille/core test`   | Un solo paquete (con cobertura en braille-core) |
+| `pnpm lint` / `pnpm typecheck`       | ESLint / TypeScript en cada paquete (turbo)     |
+| `pnpm format` / `pnpm format:check`  | Prettier                                        |
+| `pio run` (en `firmware/`)           | Compila el firmware (requiere PlatformIO Core)  |
 
 No hay `test:watch` en la raíz: usar `pnpm --filter <paquete> exec vitest`. El CI corre
 `format:check`, `lint`, `typecheck`, `test` y `build`, y en otro trabajo `pio run`. Antes de dar un
@@ -164,21 +164,21 @@ cambio por terminado, correr esos cinco en ese orden.
 Registrarlas aquí no cambia ni el código ni la propuesta. Las que tocan arquitectura o el contrato
 con el dispositivo exigen un ADR para resolverse.
 
-| Tema                 | Propuesta (`braille-web` y docs del espacio de trabajo) | Código actual                                         |
-| -------------------- | ------------------------------------------------------- | ----------------------------------------------------- |
-| Forma del repositorio | Una app Vite con `src/app`, `features/*`, `shared/*`   | Monorepo pnpm + turbo: `apps/web` + 3 paquetes        |
-| Gestor de paquetes   | npm (`npm run …`)                                       | pnpm (`npm` no se usa)                                |
-| Interfaz del dispositivo | `BrailleDevice` en `features/device`                | `DispositivoBraille` en `packages/device`             |
-| Dominio Braille      | `shared/braille`; datos canónicos desde la API (ADR-0006) | `packages/braille-core` con tabla propia de 45 signos |
-| Protocolo serial     | `docs/arquitectura/protocolo-serial.md`: `{"tipo":…}`, `servos_listos` | `docs/PROTOCOLO.md`: NDJSON `{"t":…}`, `cell`/`ack`, `press` |
-| Firmware             | Carpeta `hardware/` o repo propio (ADR-0007 propuesto)  | `firmware/` dentro de este repositorio                |
-| Narración            | Guion por claves en `features/narration` + Web Speech API + `aria-live` | Textos en `App.tsx`; solo `aria-live`, sin Web Speech |
-| Escritura            | Modos formación/simultáneo y orientación pizarra/Perkins (ADR-0005) | Solo acorde simultáneo; sin modos ni orientaciones |
-| Cliente de la API    | `shared/api` con tipos de `npm run api:types`           | No existe                                             |
-| Pruebas de interfaz  | Testing Library + axe; dispositivo falso en `src/test/` | Sin pruebas en la web; doble en `@braille/device/pruebas` |
-| Comandos             | `test:watch`, `api:types`, `preview` en la raíz         | No existen en la raíz                                 |
-| Identificadores      | En inglés (CLAUDE.md raíz)                              | En español                                            |
-| Ramas                | `feature/RF-xx-…`, commits con `(RF-xx)`                | `prototipo/…`, commits sin RF                         |
+| Tema                     | Propuesta (`braille-web` y docs del espacio de trabajo)                 | Código actual                                                |
+| ------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Forma del repositorio    | Una app Vite con `src/app`, `features/*`, `shared/*`                    | Monorepo pnpm + turbo: `apps/web` + 3 paquetes               |
+| Gestor de paquetes       | npm (`npm run …`)                                                       | pnpm (`npm` no se usa)                                       |
+| Interfaz del dispositivo | `BrailleDevice` en `features/device`                                    | `DispositivoBraille` en `packages/device`                    |
+| Dominio Braille          | `shared/braille`; datos canónicos desde la API (ADR-0006)               | `packages/braille-core` con tabla propia de 45 signos        |
+| Protocolo serial         | `docs/arquitectura/protocolo-serial.md`: `{"tipo":…}`, `servos_listos`  | `docs/PROTOCOLO.md`: NDJSON `{"t":…}`, `cell`/`ack`, `press` |
+| Firmware                 | Carpeta `hardware/` o repo propio (ADR-0007 propuesto)                  | `firmware/` dentro de este repositorio                       |
+| Narración                | Guion por claves en `features/narration` + Web Speech API + `aria-live` | Textos en `App.tsx`; solo `aria-live`, sin Web Speech        |
+| Escritura                | Modos formación/simultáneo y orientación pizarra/Perkins (ADR-0005)     | Solo acorde simultáneo; sin modos ni orientaciones           |
+| Cliente de la API        | `shared/api` con tipos de `npm run api:types`                           | No existe                                                    |
+| Pruebas de interfaz      | Testing Library + axe; dispositivo falso en `src/test/`                 | Sin pruebas en la web; doble en `@braille/device/pruebas`    |
+| Comandos                 | `test:watch`, `api:types`, `preview` en la raíz                         | No existen en la raíz                                        |
+| Identificadores          | En inglés (CLAUDE.md raíz)                                              | En español                                                   |
+| Ramas                    | `feature/RF-xx-…`, commits con `(RF-xx)`                                | `prototipo/…`, commits sin RF                                |
 
 ## Problemas conocidos
 
