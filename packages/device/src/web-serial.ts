@@ -56,6 +56,10 @@ export class ErrorTiempoAgotado extends ErrorProtocolo {
 export class ErrorIncompatible extends ErrorProtocolo {
   override name = 'ErrorIncompatible';
 }
+/** Una orden en curso se canceló porque la conexión se cerró (cable retirado, desconexión). */
+export class ErrorConexionCerrada extends ErrorProtocolo {
+  override name = 'ErrorConexionCerrada';
+}
 class ErrorReinicio extends ErrorProtocolo {}
 
 /**
@@ -259,7 +263,8 @@ export class DispositivoWebSerial implements DispositivoBraille {
       }
     } finally {
       // Se lee con el getter: el estado pudo cambiar (p. ej. desconexión) mientras se esperaba.
-      if (this.estado === 'moviendo') this.cambiarEstado('listo');
+      // Si la conexión se está cerrando, no se pasa por 'listo': otra orden en cola la usaría.
+      if (this.estado === 'moviendo' && !this.cerrando) this.cambiarEstado('listo');
     }
   }
 
@@ -410,7 +415,7 @@ export class DispositivoWebSerial implements DispositivoBraille {
     for (const [id, p] of this.pendientes) {
       clearTimeout(p.temporizador);
       this.pendientes.delete(id);
-      p.rechazar(new ErrorProtocolo(motivo));
+      p.rechazar(new ErrorConexionCerrada(motivo));
     }
   }
 
