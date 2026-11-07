@@ -10,6 +10,7 @@ Cada `release/*` mueve lo de "Sin publicar" a su versión.
 - Pruebas de interfaz en `apps/web` (Vitest + jsdom + Testing Library + axe-core) y pruebas de la conexión por USB: acción explícita, anuncios en español y accesibilidad (RF-01).
 - `docs/PRUEBAS-NVDA.md`: requisito de tener una voz en español y el cambio automático de idioma en NVDA, porque una voz en inglés lee «la be» como «la bi».
 - `docs/PRUEBAS-NVDA.md`: resultados de N-03, N-10, N-22 y N-23 con NVDA en Chrome 157 (RF-01).
+- Pruebas de que nada que suponga la celda levantada se narra antes del `ack` de `cell`, ni cuando el `ack` no llega o el firmware responde `err` (`apps/web/test/esperar-ack.test.tsx` y `packages/device`) y resultado de N-11 con la placa y NVDA (RF-04).
 - Pruebas de contrato (`packages/device/test/contrato-dispositivo.test.ts`): los mismos escenarios corren contra el simulador y contra el dispositivo real con el firmware falso (RF-03).
 - Pruebas de la desconexión y la reconexión (`apps/web/test/reconectar-dispositivo.test.tsx` y `packages/device`) y resultados de N-13, N-14 y N-21 con NVDA (RF-02).
 - Pruebas de `packages/device` para navegador sin Web Serial, falta de permiso, reintento y segunda conexión (RF-01).
