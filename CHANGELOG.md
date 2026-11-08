@@ -7,6 +7,7 @@ Cada `release/*` mueve lo de "Sin publicar" a su versión.
 
 ### Agregado
 
+- Presentación de letras (RF-06): sección "Presentación de letras" con "Presentar la letra" y "Siguiente letra". Levanta la letra, espera el `ack` y narra «Letra 4 de 10. Toque la celda. Esta es la de. Su forma: codo a la derecha.», sin números de puntos y sin evaluar ni generar intentos. Las letras sin `figura` solo se nombran. `describirPresentacion` en `braille-core` y pruebas en `apps/web/test/presentar-letra.test.tsx`.
 - Pruebas de la verificación del dispositivo al entrar, de la práctica ligada al dispositivo listo, de los mensajes de sin dispositivo, sin Web Serial, desconexión y firmware incompatible, del foco y de la accesibilidad (`apps/web/test/verificar-dispositivo.test.tsx`) (RF-34).
 - Pruebas de interfaz en `apps/web` (Vitest + jsdom + Testing Library + axe-core) y pruebas de la conexión por USB: acción explícita, anuncios en español y accesibilidad (RF-01).
 - `docs/PRUEBAS-NVDA.md`: requisito de tener una voz en español y el cambio automático de idioma en NVDA, porque una voz en inglés lee «la be» como «la bi».
@@ -19,12 +20,14 @@ Cada `release/*` mueve lo de "Sin publicar" a su versión.
 
 ### Cambiado
 
+- La pantalla se organiza en zonas (RF-06): "Aprender: lectura" (presentación de letras), "Practicar: escritura" y, solo en desarrollo, "Herramientas de prueba" con la lectura técnica de signos y puntos sueltos. En escritorio, Aprender y Practicar van lado a lado. Los encabezados quedan sin saltos de nivel (las zonas son h2; las secciones, h3; sus subsecciones, h4), y la lectura técnica deja de verse en producción.
 - El dispositivo es obligatorio (ADR-0012, RF-34): Lectura y Escritura solo se muestran con el dispositivo listo, y si se pierde la práctica se pausa y conserva la serie y la letra. Al entrar sin dispositivo se anuncia qué revisar y a quién pedir ayuda, sin abrir el puerto sin un clic.
 - El simulador solo está disponible con `pnpm dev` y en las pruebas (`App` recibe `permitirSimulador`). En producción desaparecen "Volver al simulador" y la caída al simulador cuando falla la conexión.
 - Mensajes nuevos de sin dispositivo, sin Web Serial, desconexión (ya no ofrece "seguir con la celda virtual") y firmware incompatible ("El dispositivo necesita una actualización. Pide ayuda a tu tutor.").
 
 ### Corregido
 
+- Pruebas de `esperar-ack.test.tsx` más estables: el `ack` falso pasó de 300 ms a 1 s, porque con la máquina cargada el clic tardaba más que la mitad del `ack` y fallaban de forma intermitente (RF-06).
 - El aviso de "sin dispositivo" al entrar espera 1,5 s: NVDA descartaba el que llegaba justo al cargar la página y solo se oía al señalarlo con el mouse. Si la persona ya empezó a conectar, el aviso no se repite (RF-34).
 - `mostrarCelda` rechaza al instante una máscara que no sea un entero de 0 a 63 (`ErrorProtocolo`), en el dispositivo real y en el simulador. Antes el firmware respondía `BAD_MESSAGE` sin `id` y la app tardaba dos timeouts en decir "no confirmó a tiempo" (RF-05).
 - El simulador se comporta como el dispositivo real: pasa por `conectando`, rechaza conectar dos veces, pone las órdenes en cola, usa los mismos errores y, si se desconecta durante un movimiento, rechaza la orden con `ErrorConexionCerrada` sin volver a `listo` (RF-03).

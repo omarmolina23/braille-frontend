@@ -186,17 +186,44 @@ select {
   background: var(--error);
 }
 
-/* ───────────── Secciones de lectura y escritura ───────────── */
+/* ───────────── Zonas: aprender, practicar y herramientas de prueba ───────────── */
 
-.secciones {
+.zonas {
   display: grid;
-  gap: 1.5rem;
+  gap: 2rem;
   align-items: start;
 }
 
+.zona {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.zona-titulo {
+  margin: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 3px solid var(--acento);
+  font-size: 1.5rem;
+}
+
+/* Las herramientas son para quien desarrolla: se distinguen y quedan al final. */
+.zona-herramientas {
+  padding-top: 1.5rem;
+  border-top: 2px dashed var(--borde);
+}
+
+.zona-herramientas .zona-titulo {
+  border-bottom-color: var(--borde);
+}
+
 @media (min-width: 64rem) {
-  .secciones {
+  .zonas {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .zona-herramientas {
+    grid-column: 1 / -1;
   }
 }
 
@@ -208,12 +235,12 @@ select {
   background: var(--superficie);
 }
 
-.panel h2 {
+.panel > h3 {
   margin: 0 0 0.25rem;
   font-size: 1.75rem;
 }
 
-.panel h3 {
+.panel h4 {
   margin: 0 0 0.5rem;
   font-size: 1.25rem;
 }

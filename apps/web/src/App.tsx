@@ -9,6 +9,7 @@ import {
   PUNTOS,
   TABLA,
   describirEvaluacion,
+  describirPresentacion,
   describirPuntos,
   esLetra,
   evaluar,
@@ -37,6 +38,7 @@ import {
   type LectorSeisTeclas,
   type PuertoSerie,
 } from '@braille/device';
+import { PresentacionLetras } from './PresentacionLetras';
 
 /** Series del código generador, en el orden en que se enseñan. */
 const SERIES: readonly { serie: Serie; rango: string }[] = [
@@ -169,7 +171,7 @@ function VisorCelda({ teclado, pulsadores, celdaVirtual, ultimo }: PropsVisor) {
 
   return (
     <section aria-labelledby="t-visor" className="bloque">
-      <h3 id="t-visor">Visor de la celda</h3>
+      <h4 id="t-visor">Visor de la celda</h4>
       <div className="celda celda-grande celda-visor" aria-hidden="true">
         {PUNTOS.map((p) => (
           <span key={p} className="punto" data-estado={estadoDe(p)}>
@@ -237,7 +239,7 @@ function SeccionLectura({
 
   return (
     <section aria-labelledby="t-lectura" className="panel">
-      <h2 id="t-lectura">Lectura</h2>
+      <h3 id="t-lectura">Lectura</h3>
       <p className="nota">
         Elige un signo y levántalo en {esFisico ? 'los servos del dispositivo' : 'el simulador'}{' '}
         para tocarlo.
@@ -278,7 +280,7 @@ function SeccionLectura({
         <p className="estado-celda">{describirCeldaLevantada(levantada)}</p>
       </div>
       <section aria-labelledby="t-puntos" className="bloque">
-        <h3 id="t-puntos">Puntos sueltos</h3>
+        <h4 id="t-puntos">Puntos sueltos</h4>
         <p className="nota">
           Levanta un solo punto, para reconocer su posición o revisar que cada servo sube y baja.
         </p>
@@ -315,6 +317,8 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
   const [estado, setEstado] = useState<EstadoConexion>('desconectado');
   const [serie, setSerie] = useState<Serie>(1);
   const [indice, setIndice] = useState(0);
+  /** Letra de la serie que se presenta en la sección de presentación (RF-06). */
+  const [indicePresentacion, setIndicePresentacion] = useState(0);
   const [anuncio, setAnuncio] = useState('');
   const [celdaVirtual, setCeldaVirtual] = useState<Mascara>(0);
   const [celdaLevantada, setCeldaLevantada] = useState<Mascara | null>(null);
@@ -533,6 +537,7 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
   function cambiarSerie(nueva: Serie) {
     const signos = signosDeSerie(nueva);
     setSerie(nueva);
+    setIndicePresentacion(0);
     setIndice(0);
     anunciar(
       `Serie ${nueva}: de ${nombreConArticulo(signos[0]!)} a ${nombreConArticulo(signos.at(-1)!)}. ` +
@@ -548,7 +553,26 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
     const signo = signoPorId(id)!;
     const serieDeLetra = signo.serie!;
     setSerie(serieDeLetra);
+    setIndicePresentacion(0);
     setIndice(signosDeSerie(serieDeLetra).findIndex((s) => s.id === id));
+  }
+
+  /** RF-06: levanta la letra y solo cuando la celda quedó quieta (ack) invita a tocarla. */
+  async function presentarLetra() {
+    const posicion = indicePresentacion % letras.length;
+    try {
+      await levantar(letras[posicion]!.mascara);
+      anunciar(describirPresentacion(letras[posicion]!, posicion + 1, letras.length));
+    } catch (error) {
+      anunciarFalloDeCelda('La celda no respondió', error);
+    }
+  }
+
+  function siguienteLetra() {
+    const siguiente = (indicePresentacion + 1) % letras.length;
+    setIndicePresentacion(siguiente);
+    const posicion = `Letra ${siguiente + 1} de ${letras.length}.`;
+    anunciar(siguiente === 0 ? `Volviste a la primera letra de la serie. ${posicion}` : posicion);
   }
 
   async function mostrarEnCelda() {
@@ -647,117 +671,144 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
       </section>
 
       {practicaDisponible && (
-        <div className="secciones">
-          <SeccionLectura
-            levantada={celdaLevantada}
-            esFisico={esFisico}
-            habilitada={puedeMoverCelda(estado)}
-            onLevantar={levantarSigno}
-            onLevantarPunto={levantarPunto}
-            onBajar={bajarCelda}
-          />
+        <div className="zonas">
+          <section aria-labelledby="t-aprender" className="zona">
+            <h2 id="t-aprender" className="zona-titulo">
+              Aprender: lectura
+            </h2>
+            <PresentacionLetras
+              habilitada={puedeMoverCelda(estado)}
+              onPresentar={presentarLetra}
+              onSiguiente={siguienteLetra}
+            />
+          </section>
 
-          <section aria-labelledby="t-escritura" className="panel">
-            <h2 id="t-escritura">Escritura</h2>
+          <section aria-labelledby="t-practicar" className="zona">
+            <h2 id="t-practicar" className="zona-titulo">
+              Practicar: escritura
+            </h2>
+            <section aria-labelledby="t-escritura" className="panel">
+              <h3 id="t-escritura">Escritura</h3>
 
-            <section aria-labelledby="t-ejercicio">
-              <h3 id="t-ejercicio">Ejercicio</h3>
-              <fieldset className="selector-serie">
-                <legend>Serie</legend>
-                {SERIES.map(({ serie: s, rango }) => (
-                  <label key={s}>
-                    <input
-                      type="radio"
-                      name="serie"
-                      checked={serie === s}
-                      onChange={() => cambiarSerie(s)}
-                    />
-                    Serie {s} <span className="rango">{rango}</span>
+              <section aria-labelledby="t-ejercicio">
+                <h4 id="t-ejercicio">Ejercicio</h4>
+                <fieldset className="selector-serie">
+                  <legend>Serie</legend>
+                  {SERIES.map(({ serie: s, rango }) => (
+                    <label key={s}>
+                      <input
+                        type="radio"
+                        name="serie"
+                        checked={serie === s}
+                        onChange={() => cambiarSerie(s)}
+                      />
+                      Serie {s} <span className="rango">{rango}</span>
+                    </label>
+                  ))}
+                </fieldset>
+                <div className="formulario">
+                  <label className="campo">
+                    Letra que se dicta
+                    <select value={objetivo.id} onChange={(e) => dictarLetra(e.target.value)}>
+                      <OpcionesDeSignos grupos={GRUPOS_DE_SERIES} />
+                    </select>
                   </label>
-                ))}
-              </fieldset>
-              <div className="formulario">
-                <label className="campo">
-                  Letra que se dicta
-                  <select value={objetivo.id} onChange={(e) => dictarLetra(e.target.value)}>
-                    <OpcionesDeSignos grupos={GRUPOS_DE_SERIES} />
-                  </select>
-                </label>
-              </div>
-              <p className="consigna">
-                Escribe <strong>{nombreConArticulo(objetivo)}</strong>.
-              </p>
-              <div className="acciones">
-                <button type="button" onClick={repetirInstruccion}>
-                  Repetir instrucción
-                </button>
-                <button type="button" onClick={mostrarEnCelda} disabled={!puedeMoverCelda(estado)}>
-                  Mostrar en la celda
-                </button>
-              </div>
+                </div>
+                <p className="consigna">
+                  Escribe <strong>{nombreConArticulo(objetivo)}</strong>.
+                </p>
+                <div className="acciones">
+                  <button type="button" onClick={repetirInstruccion}>
+                    Repetir instrucción
+                  </button>
+                  <button
+                    type="button"
+                    onClick={mostrarEnCelda}
+                    disabled={!puedeMoverCelda(estado)}
+                  >
+                    Mostrar en la celda
+                  </button>
+                </div>
 
-              {/*
+                {/*
               role="application" hace que NVDA y JAWS pasen a modo foco y dejen llegar F D S J K L
               (en modo exploración esas letras son atajos de navegación). jsx-a11y lo trata como rol
               no interactivo; la excepción es deliberada y debe validarse con NVDA y JAWS reales.
             */}
-              {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
-              <div
-                ref={areaEscrituraRef}
-                className="area-escritura"
-                role="application"
-                tabIndex={0}
-                aria-label="Área de escritura. Usa F, D y S para los puntos 1, 2 y 3; J, K y L para los puntos 4, 5 y 6. Suelta todas las teclas para confirmar. Espacio repite la instrucción."
-                onKeyDown={(e) => {
-                  if (lector().teclaAbajo(e.code, e.repeat)) e.preventDefault();
-                  else if (e.code === 'Space') {
-                    e.preventDefault();
-                    repetirInstruccion();
-                  }
-                }}
-                onKeyUp={(e) => {
-                  if (lector().teclaArriba(e.code)) e.preventDefault();
-                }}
-                onBlur={() => lector().reiniciar()}
-              >
-                Área de escritura con teclado: F D S · J K L
-              </div>
-              {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
-            </section>
-
-            <div className="rejilla-escritura">
-              <VisorCelda
-                teclado={teclado}
-                pulsadores={pulsadores}
-                celdaVirtual={celdaVirtual}
-                ultimo={ultimoAcorde}
-              />
-
-              <section aria-labelledby="t-celda" className="bloque">
-                <h3 id="t-celda">Celda virtual</h3>
-                <div className="celda celda-virtual" role="group" aria-labelledby="t-celda">
-                  {PUNTOS.map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      className="punto"
-                      aria-pressed={(celdaVirtual & bit(p)) !== 0}
-                      onClick={() => setCeldaVirtual((c) => c ^ bit(p))}
-                    >
-                      {p}
-                    </button>
-                  ))}
+                {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
+                <div
+                  ref={areaEscrituraRef}
+                  className="area-escritura"
+                  role="application"
+                  tabIndex={0}
+                  aria-label="Área de escritura. Usa F, D y S para los puntos 1, 2 y 3; J, K y L para los puntos 4, 5 y 6. Suelta todas las teclas para confirmar. Espacio repite la instrucción."
+                  onKeyDown={(e) => {
+                    if (lector().teclaAbajo(e.code, e.repeat)) e.preventDefault();
+                    else if (e.code === 'Space') {
+                      e.preventDefault();
+                      repetirInstruccion();
+                    }
+                  }}
+                  onKeyUp={(e) => {
+                    if (lector().teclaArriba(e.code)) e.preventDefault();
+                  }}
+                  onBlur={() => lector().reiniciar()}
+                >
+                  Área de escritura con teclado: F D S · J K L
                 </div>
-                <p className="estado-celda">
-                  Marcados:{' '}
-                  {celdaVirtual === 0 ? 'ninguno' : mascaraAPuntos(celdaVirtual).join(', ')}
-                </p>
-                <button type="button" onClick={enviarCeldaVirtual}>
-                  Enviar celda
-                </button>
+                {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
               </section>
-            </div>
+
+              <div className="rejilla-escritura">
+                <VisorCelda
+                  teclado={teclado}
+                  pulsadores={pulsadores}
+                  celdaVirtual={celdaVirtual}
+                  ultimo={ultimoAcorde}
+                />
+
+                <section aria-labelledby="t-celda" className="bloque">
+                  <h4 id="t-celda">Celda virtual</h4>
+                  <div className="celda celda-virtual" role="group" aria-labelledby="t-celda">
+                    {PUNTOS.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        className="punto"
+                        aria-pressed={(celdaVirtual & bit(p)) !== 0}
+                        onClick={() => setCeldaVirtual((c) => c ^ bit(p))}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="estado-celda">
+                    Marcados:{' '}
+                    {celdaVirtual === 0 ? 'ninguno' : mascaraAPuntos(celdaVirtual).join(', ')}
+                  </p>
+                  <button type="button" onClick={enviarCeldaVirtual}>
+                    Enviar celda
+                  </button>
+                </section>
+              </div>
+            </section>
           </section>
+
+          {permitirSimulador && (
+            <section aria-labelledby="t-herramientas" className="zona zona-herramientas">
+              <h2 id="t-herramientas" className="zona-titulo">
+                Herramientas de prueba
+              </h2>
+              <SeccionLectura
+                levantada={celdaLevantada}
+                esFisico={esFisico}
+                habilitada={puedeMoverCelda(estado)}
+                onLevantar={levantarSigno}
+                onLevantarPunto={levantarPunto}
+                onBajar={bajarCelda}
+              />
+            </section>
+          )}
         </div>
       )}
     </main>

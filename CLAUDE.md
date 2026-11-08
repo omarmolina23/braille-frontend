@@ -24,7 +24,7 @@ archivo en el mismo PR. Lo personal va en CLAUDE.local.md (no versionado). -->
 ## Etapa actual: versión de prueba
 
 - Lo que hay hoy es una **versión de prueba**: una sola pantalla (`apps/web/src/App.tsx`) con
-  lectura (levantar un signo en la celda), escritura por acordes de las series a–j, k–t y u–z,
+  lectura (levantar un signo en la celda) y presentación de letras por su forma, organizadas en zonas (Aprender, Practicar y, solo en desarrollo, Herramientas de prueba), escritura por acordes de las series a–j, k–t y u–z,
   visor de la celda y conexión al ESP32 (el simulador solo existe con `pnpm dev` y en las pruebas). No hay rutas, ni cliente de la API, ni
   registro de progreso, ni PWA todavía.
 - Los PR de esta etapa llevan la etiqueta **`prototipo`** (también en `braille-backend`) y sus
@@ -42,7 +42,7 @@ Arduino, ArduinoJson 7 y ESP32Servo 3.
 ```text
 apps/web/                 @braille/web: Vite + React; App.tsx (pantalla única), estilos.css, main.tsx
 packages/
-├── braille-core/         @braille/core: celda.ts, tabla.ts (45 signos), traduccion.ts, evaluacion.ts
+├── braille-core/         @braille/core: celda.ts, tabla.ts (45 signos), traduccion.ts, evaluacion.ts, presentacion.ts
 │   └── test/             Pruebas, oráculo independiente (referencia.ts) y umbral de cobertura 80 %
 ├── protocol/             @braille/protocol: mensajes.ts (Zod), codec.ts (NDJSON), constantes.ts, ejemplos.ts
 └── device/               @braille/device: puerto.ts (DispositivoBraille), simulador.ts, web-serial.ts,
