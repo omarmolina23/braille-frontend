@@ -7,14 +7,16 @@ interface PropsPresentacion {
 
 /**
  * Presentación de letras (RF-06): se levanta una letra y la persona la reconoce al tacto por su
- * forma. Solo se presenta: no se evalúa ni genera intentos. Lo que se narra lo decide `App`.
+ * forma. Solo se presenta: no se evalúa ni genera intentos. Presentar otra vez es la repetición
+ * (RF-07). Lo que se narra lo decide `App`.
  */
 export function PresentacionLetras({ habilitada, onPresentar, onSiguiente }: PropsPresentacion) {
   return (
     <section aria-labelledby="t-presentacion" className="panel">
       <h3 id="t-presentacion">Presentación de letras</h3>
       <p className="nota">
-        Se levanta una letra en la celda para que la reconozcas al tacto por su forma.
+        Se levanta una letra en la celda para que la reconozcas al tacto por su forma. Puedes
+        presentarla cuantas veces quieras.
       </p>
       <div className="acciones">
         <button type="button" className="principal" onClick={onPresentar} disabled={!habilitada}>
