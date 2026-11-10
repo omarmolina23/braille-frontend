@@ -27,6 +27,7 @@ Cada `release/*` mueve lo de "Sin publicar" a su versión.
 
 ### Corregido
 
+- El check "Conventional Commits" no corría en ningún PR: `.github/workflows/pr-title.yml` usaba `pull_request_target`, que GitHub toma de la rama por defecto (`main`), donde el flujo no existe. Ahora usa `pull_request`.
 - Pruebas de `esperar-ack.test.tsx` más estables: el `ack` falso pasó de 300 ms a 1 s, porque con la máquina cargada el clic tardaba más que la mitad del `ack` y fallaban de forma intermitente (RF-06).
 - El aviso de "sin dispositivo" al entrar espera 1,5 s: NVDA descartaba el que llegaba justo al cargar la página y solo se oía al señalarlo con el mouse. Si la persona ya empezó a conectar, el aviso no se repite (RF-34).
 - `mostrarCelda` rechaza al instante una máscara que no sea un entero de 0 a 63 (`ErrorProtocolo`), en el dispositivo real y en el simulador. Antes el firmware respondía `BAD_MESSAGE` sin `id` y la app tardaba dos timeouts en decir "no confirmó a tiempo" (RF-05).
