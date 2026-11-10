@@ -27,8 +27,8 @@ archivo en el mismo PR. Lo personal va en CLAUDE.local.md (no versionado). -->
   lectura (levantar un signo en la celda) y presentación de letras por su forma, organizadas en zonas (Aprender, Practicar y, solo en desarrollo, Herramientas de prueba), escritura por acordes de las series a–j, k–t y u–z,
   visor de la celda y conexión al ESP32 (el simulador solo existe con `pnpm dev` y en las pruebas). No hay rutas, ni cliente de la API, ni
   registro de progreso, ni PWA todavía.
-- Los PR de esta etapa llevan la etiqueta **`prototipo`** (también en `braille-backend`) y sus
-  ramas empiezan por `prototipo/`. La interfaz muestra "Versión de prueba" junto al título.
+- Los PR de esta etapa llevan la etiqueta **`prototipo`** (también en `braille-backend`); las ramas
+  siguen el flujo normal (ver Convenciones). La interfaz muestra "Versión de prueba" junto al título.
 
 ## Stack (versiones exactas en cada `package.json`)
 
@@ -150,8 +150,12 @@ cambio por terminado, correr esos cinco en ese orden.
 - TypeScript estricto con `noUncheckedIndexedAccess` y `verbatimModuleSyntax` (usar `import type`);
   sin `any`. Pruebas con Vitest en `packages/*/test/*.test.ts`.
 - No cambiar versiones mayores de dependencias salvo en un PR dedicado.
-- Ramas cortas desde `main`; _Conventional Commits_ en español; todo cambio entra por PR revisado
-  por el otro integrante y con el CI en verde. Sin enlaces de sesión en commits ni PRs.
+- Git Flow (fuente: `../../docs/metodologia/flujo-de-trabajo.md`): cada RF va en
+  `feature/RF-xx-descripcion` desde `develop`; las tareas sin RF, en `chore/`, `docs/`, `ci/` o
+  `fix/`. `release/X.Y.Z` y `hotfix/X.Y.Z` se integran en `main` y en `develop`.
+- _Conventional Commits_ en español con `(RF-xx)`; tipos y alcances en
+  `.github/workflows/pr-title.yml`. Todo cambio entra por PR a `develop`, revisado por el otro
+  integrante, con el CI en verde y squash merge. Sin enlaces de sesión en commits ni PRs.
 - Entorno: Windows con PowerShell, finales de línea LF. Si turbo reporta
   `recursive_turbo_invocations`, falta `pnpm-workspace.yaml` o `turbo.json`.
 
@@ -182,7 +186,6 @@ con el dispositivo exigen un ADR para resolverse.
 | Pruebas de interfaz      | Testing Library + axe; dispositivo falso en `src/test/`                 | Testing Library + axe en `apps/web/test/`; doble en `@braille/device/pruebas` |
 | Comandos                 | `test:watch`, `api:types`, `preview` en la raíz                         | No existen en la raíz                                                         |
 | Identificadores          | En inglés (CLAUDE.md raíz)                                              | En español                                                                    |
-| Ramas                    | `feature/RF-xx-…`, commits con `(RF-xx)`                                | `prototipo/…`, commits sin RF                                                 |
 
 ## Problemas conocidos
 

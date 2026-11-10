@@ -1,0 +1,47 @@
+name: Seguridad
+
+# Etapa 2 de docs/metodologia/ci-cd.md: secretos en el historial y vulnerabilidades en dependencias.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: seguridad-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  gitleaks:
+    name: Secretos (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      # Historial completo: Gitleaks revisa cada commit del PR, no solo el último.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Sin licencia: el repositorio es de una cuenta personal, no de una organización.
+      # Si encuentra un secreto, se revoca y se cambia aunque el commit se borre.
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: false
+
+  auditoria:
+    name: Dependencias (pnpm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # Lee pnpm-lock.yaml; no necesita instalar. Falla con vulnerabilidades altas o críticas.
+      - run: pnpm audit --audit-level high
