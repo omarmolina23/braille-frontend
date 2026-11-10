@@ -101,6 +101,9 @@ const GRUPOS_DE_SIGNOS: readonly GrupoDeSignos[] = [
 
 type OrigenAcorde = 'teclado' | 'celda virtual' | 'dispositivo';
 
+/** Lo que repite la tecla Repetir del dispositivo (RF-07). */
+type Actividad = 'presentacion' | 'escritura';
+
 interface AcordeEscrito {
   mascara: Mascara;
   origen: OrigenAcorde;
@@ -339,6 +342,8 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
   const practicaAnteriorRef = useRef(false);
   /** true cuando la persona ya empezó a conectar: el aviso inicial deja de tener sentido. */
   const intentoDeConexionRef = useRef(false);
+  /** Lo último que hizo la persona: decide qué repite la tecla Repetir del dispositivo (RF-07). */
+  const ultimaActividadRef = useRef<Actividad>('escritura');
   const letras = useMemo(() => signosDeSerie(serie), [serie]);
   const objetivo = letras[indice % letras.length]!;
   const esFisico = dispositivo !== simulador;
@@ -382,6 +387,7 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
     (mascara: Mascara) => {
       setUltimoAcorde({ mascara, origen: origenRef.current ?? 'dispositivo' });
       origenRef.current = null;
+      ultimaActividadRef.current = 'escritura';
       const esperado = objetivoRef.current;
       const evaluacion = evaluar(esperado.mascara, mascara);
       const mensaje = describirEvaluacion(evaluacion, esperado);
@@ -406,8 +412,18 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
   );
 
   const repetirInstruccion = useCallback(() => {
+    ultimaActividadRef.current = 'escritura';
     anunciar(`Escribe ${nombreConArticulo(objetivoRef.current)}.`);
   }, [anunciar]);
+
+  /** Se reemplaza en cada render: así la tecla Repetir presenta la letra actual, no una vieja. */
+  const presentarLetraRef = useRef<() => Promise<void>>(() => Promise.resolve());
+
+  /** Tecla Repetir del dispositivo: repite lo último, la presentación o la instrucción (RF-07). */
+  const repetirUltimo = useCallback(() => {
+    if (ultimaActividadRef.current === 'presentacion') void presentarLetraRef.current();
+    else repetirInstruccion();
+  }, [repetirInstruccion]);
 
   // Al entrar sin simulador se verifica el dispositivo y se anuncia el resultado. No se abre el
   // puerto sin un clic (RF-01): conectar exige un gesto de la persona.
@@ -432,13 +448,15 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
       dispositivo.onAcorde(manejarAcorde),
       dispositivo.onAcordeEnCurso(setPulsadores),
       dispositivo.onTecla((tecla) => {
-        if (tecla === 'repeat') repetirInstruccion();
+        if (tecla === 'repeat') repetirUltimo();
       }),
     ];
     if (dispositivo.estado === 'desconectado' && (dispositivo !== simulador || permitirSimulador)) {
       dispositivo
         .conectar()
         .then((info) => {
+          // Lo último narrado es la instrucción de escritura: Repetir debe repetirla (RF-07).
+          ultimaActividadRef.current = 'escritura';
           anunciar(
             `${info.firmware === 'simulador' ? 'Simulador' : 'Dispositivo'} listo. ` +
               `Escribe ${nombreConArticulo(objetivoRef.current)}.`,
@@ -459,7 +477,7 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
         });
     }
     return () => cancelar.forEach((c) => c());
-  }, [dispositivo, simulador, permitirSimulador, manejarAcorde, repetirInstruccion, anunciar]);
+  }, [dispositivo, simulador, permitirSimulador, manejarAcorde, repetirUltimo, anunciar]);
 
   // El foco no se pierde cuando la práctica aparece o desaparece: al perder el dispositivo va a
   // "Reconectar"; al volver tras reconectar, al área de escritura (RF-02, RF-34).
@@ -536,6 +554,7 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
 
   function cambiarSerie(nueva: Serie) {
     const signos = signosDeSerie(nueva);
+    ultimaActividadRef.current = 'escritura';
     setSerie(nueva);
     setIndicePresentacion(0);
     setIndice(0);
@@ -552,6 +571,7 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
   function dictarLetra(id: string) {
     const signo = signoPorId(id)!;
     const serieDeLetra = signo.serie!;
+    ultimaActividadRef.current = 'escritura';
     setSerie(serieDeLetra);
     setIndicePresentacion(0);
     setIndice(signosDeSerie(serieDeLetra).findIndex((s) => s.id === id));
@@ -559,6 +579,7 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
 
   /** RF-06: levanta la letra y solo cuando la celda quedó quieta (ack) invita a tocarla. */
   async function presentarLetra() {
+    ultimaActividadRef.current = 'presentacion';
     const posicion = indicePresentacion % letras.length;
     try {
       await levantar(letras[posicion]!.mascara);
@@ -568,7 +589,12 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
     }
   }
 
+  useEffect(() => {
+    presentarLetraRef.current = presentarLetra;
+  });
+
   function siguienteLetra() {
+    ultimaActividadRef.current = 'presentacion';
     const siguiente = (indicePresentacion + 1) % letras.length;
     setIndicePresentacion(siguiente);
     const posicion = `Letra ${siguiente + 1} de ${letras.length}.`;
@@ -576,6 +602,7 @@ export function App({ permitirSimulador = import.meta.env.DEV }: PropsApp) {
   }
 
   async function mostrarEnCelda() {
+    ultimaActividadRef.current = 'escritura';
     try {
       await levantar(objetivo.mascara);
       anunciar(`${describirSigno(objetivo)} Tócala y luego escríbela.`);

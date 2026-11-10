@@ -7,6 +7,7 @@ Cada `release/*` mueve lo de "Sin publicar" a su versión.
 
 ### Agregado
 
+- Repetir la presentación de la letra (RF-07): "Presentar la letra" se puede activar cuantas veces se quiera y la tecla Repetir del dispositivo repite lo último: si fue presentar o avanzar letra, vuelve a levantar la letra actual y la narra tras el `ack`; si fue escritura o una reconexión, repite la instrucción. La nota de la sección lo dice. Pruebas en `apps/web/test/repetir-presentacion.test.tsx` (incluye la tecla Repetir en escritura, que no tenía pruebas) y caso N-27 en `docs/PRUEBAS-NVDA.md`. El firmware ya lee la tecla en el GPIO 4, pero el pulsador aún no está montado en la placa: hasta entonces se repite desde la pantalla y N-27 queda pendiente.
 - Presentación de letras (RF-06): sección "Presentación de letras" con "Presentar la letra" y "Siguiente letra". Levanta la letra, espera el `ack` y narra «Letra 4 de 10. Toque la celda. Esta es la de. Su forma: codo a la derecha.», sin números de puntos y sin evaluar ni generar intentos. Las letras sin `figura` solo se nombran. `describirPresentacion` en `braille-core` y pruebas en `apps/web/test/presentar-letra.test.tsx`.
 - Pruebas de la verificación del dispositivo al entrar, de la práctica ligada al dispositivo listo, de los mensajes de sin dispositivo, sin Web Serial, desconexión y firmware incompatible, del foco y de la accesibilidad (`apps/web/test/verificar-dispositivo.test.tsx`) (RF-34).
 - Pruebas de interfaz en `apps/web` (Vitest + jsdom + Testing Library + axe-core) y pruebas de la conexión por USB: acción explícita, anuncios en español y accesibilidad (RF-01).
@@ -29,6 +30,7 @@ Cada `release/*` mueve lo de "Sin publicar" a su versión.
 
 ### Corregido
 
+- El check "Conventional Commits" no corría en ningún PR: `.github/workflows/pr-title.yml` usaba `pull_request_target`, que GitHub toma de la rama por defecto (`main`), donde el flujo no existe. Ahora usa `pull_request`.
 - Pruebas de `esperar-ack.test.tsx` más estables: el `ack` falso pasó de 300 ms a 1 s, porque con la máquina cargada el clic tardaba más que la mitad del `ack` y fallaban de forma intermitente (RF-06).
 - El aviso de "sin dispositivo" al entrar espera 1,5 s: NVDA descartaba el que llegaba justo al cargar la página y solo se oía al señalarlo con el mouse. Si la persona ya empezó a conectar, el aviso no se repite (RF-34).
 - `mostrarCelda` rechaza al instante una máscara que no sea un entero de 0 a 63 (`ErrorProtocolo`), en el dispositivo real y en el simulador. Antes el firmware respondía `BAD_MESSAGE` sin `id` y la app tardaba dos timeouts en decir "no confirmó a tiempo" (RF-05).
@@ -36,3 +38,7 @@ Cada `release/*` mueve lo de "Sin publicar" a su versión.
 - Al retirar el cable con una orden en curso, el adaptador ya no pasa por el estado `listo` y la orden se rechaza con `ErrorConexionCerrada`; la interfaz no anuncia ese fallo además del aviso de desconexión (RF-02).
 - Si falla una reconexión, la pantalla conserva el dispositivo con el botón "Reconectar" en vez de volver al simulador; al reconectar con éxito el foco pasa al área de escritura y el ejercicio (serie y letra) se conserva (RF-02).
 - Los errores del navegador se traducen aunque el `DOMException` venga de otro contexto (iframe), donde no cumple `instanceof Error` (RF-01).
+
+### Seguridad
+
+- Sin vulnerabilidades altas en `pnpm audit`: `zod` 4.6.5 → 4.6.7 (GHSA-mrhx-c7xc-m3w5) y `vite` 8.3.1 → 8.3.7, ambas parches. Las transitivas `zod` (peer de `eslint-plugin-react-hooks`) y `source-map-js` (de `magicast`) se fuerzan con `overrides` en `pnpm-workspace.yaml`, limitados a los rangos vulnerables.

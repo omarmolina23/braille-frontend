@@ -1,9 +1,10 @@
 name: Título del PR
 
 # El título del PR es el commit que queda en develop (squash merge).
-# pull_request_target no ejecuta código del PR: solo lee el título.
+# pull_request y no pull_request_target: GitHub toma este último de la rama por defecto (main),
+# no de la base del PR. Aquí solo se lee el título; no se ejecuta código del PR.
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, edited, synchronize, reopened]
 
 permissions:
