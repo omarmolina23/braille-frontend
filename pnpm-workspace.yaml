@@ -1,3 +1,12 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+
+# Dependencias transitivas con vulnerabilidades altas que `pnpm update` no alcanza
+# (las detecta `pnpm audit` en .github/workflows/seguridad.yml). Solo afectan los rangos
+# vulnerables; quitar cada una cuando el paquete que la trae ya use una versión corregida.
+overrides:
+  # Peer de eslint-plugin-react-hooks.
+  'zod@<4.6.6': '4.6.7'
+  # Dependencia de magicast (@vitest/coverage-v8).
+  'source-map-js@<1.2.2': '1.2.2'

@@ -36,3 +36,7 @@ Cada `release/*` mueve lo de "Sin publicar" a su versión.
 - Al retirar el cable con una orden en curso, el adaptador ya no pasa por el estado `listo` y la orden se rechaza con `ErrorConexionCerrada`; la interfaz no anuncia ese fallo además del aviso de desconexión (RF-02).
 - Si falla una reconexión, la pantalla conserva el dispositivo con el botón "Reconectar" en vez de volver al simulador; al reconectar con éxito el foco pasa al área de escritura y el ejercicio (serie y letra) se conserva (RF-02).
 - Los errores del navegador se traducen aunque el `DOMException` venga de otro contexto (iframe), donde no cumple `instanceof Error` (RF-01).
+
+### Seguridad
+
+- Sin vulnerabilidades altas en `pnpm audit`: `zod` 4.6.5 → 4.6.7 (GHSA-mrhx-c7xc-m3w5) y `vite` 8.3.1 → 8.3.7, ambas parches. Las transitivas `zod` (peer de `eslint-plugin-react-hooks`) y `source-map-js` (de `magicast`) se fuerzan con `overrides` en `pnpm-workspace.yaml`, limitados a los rangos vulnerables.
