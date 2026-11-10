@@ -22,6 +22,7 @@ Cada `release/*` mueve lo de "Sin publicar" a su versión.
 
 ### Cambiado
 
+- Los alcances válidos en el título del PR (`.github/workflows/pr-title.yml`) son los de `docs/metodologia/flujo-de-trabajo.md`, iguales en los dos repos: se agrega `api` y se quitan `firmware` y `protocolo` (usar `dispositivo`).
 - `CLAUDE.md`: las ramas siguen Git Flow desde `develop` (`feature/RF-xx-…`) en lugar de ramas `prototipo/` desde `main`. La etiqueta `prototipo` se mantiene.
 - La pantalla se organiza en zonas (RF-06): "Aprender: lectura" (presentación de letras), "Practicar: escritura" y, solo en desarrollo, "Herramientas de prueba" con la lectura técnica de signos y puntos sueltos. En escritorio, Aprender y Practicar van lado a lado. Los encabezados quedan sin saltos de nivel (las zonas son h2; las secciones, h3; sus subsecciones, h4), y la lectura técnica deja de verse en producción.
 - El dispositivo es obligatorio (ADR-0012, RF-34): Lectura y Escritura solo se muestran con el dispositivo listo, y si se pierde la práctica se pausa y conserva la serie y la letra. Al entrar sin dispositivo se anuncia qué revisar y a quién pedir ayuda, sin abrir el puerto sin un clic.

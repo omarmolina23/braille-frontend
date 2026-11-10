@@ -28,6 +28,7 @@ jobs:
             chore
             ci
             perf
+          # Alcances de docs/metodologia/flujo-de-trabajo.md; la lista es la misma en los dos repos.
           scopes: |
             dispositivo
             lectura
@@ -36,9 +37,8 @@ jobs:
             progreso
             usuarios
             dominio
+            api
             ui
-            firmware
-            protocolo
             ci
             deps
           requireScope: false
